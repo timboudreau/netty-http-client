@@ -32,7 +32,28 @@ The first thing you need is an ``HttpClient``:
 There are two ways to pay attention to the result of an HTTP call - you can listen
 for <code>State</code> objects which exist for every state transition in the process
 of making a request and handling the response;  or you can provide a simpler callback which
-will be called with the response once it arrives.  First, you can get all the details
+will be called with the response once it arrives.  This looks like
+
+
+```java
+	ResponseFuture h = client
+		.get().setURL ( "http://localhost:9333/foo/bar" ))
+		.execute ( new ResponseHandler <String> ( String.class ) {
+
+            protected void receive ( HttpResponseStatus status, HttpHeaders headers, String response ) {
+                System.out.println ( "Here's the response: '" + response + "'" );
+            }
+        });
+```
+
+You'll note the ``ResponseHandler`` callback is parameterized on String - you can get your content as a
+string, byte array, InputStream or Netty ByteBuf.  You can also pass other types;  Jackson is used to
+deserialize JSON, and is the default for unknown types (this may fail if Jackson does not know how to
+serialize it).
+
+<h4>The Details</h4>
+
+You can get all the details
 by providing a ``Receiver<State<?>>`` when you build a request;  there are states for
 things like Connecting, HeadersReceived;  you can even capture every chunk of chunked
 encoding individually if you want.  
@@ -46,31 +67,13 @@ encoding individually if you want.
             public void receive( State<?> state ) {
                 System.out.println( "STATE " + state + " " + state.name() + " " + state.get() );
                 if ( state.stateType() == StateType.Finished ) {
-                    DefaultFullHttpRequest d = (DefaultFullHttpRequest) state.get();
+                    DefaultFullHttpResponse d = (DefaultFullHttpResponse) state.get();
 		    //do something
                 }
             }
 
         }).execute();
 ```
-
-or much more simply:
-
-```java
-	ResponseFuture h = client
-		.get().setURL( "http://localhost:9333/foo/bar" ))
-		.execute( new ResponseHandler<String>(String.class){
-
-            protected void receive( HttpResponseStatus status, HttpHeaders headers, String response ) {
-                System.out.println( "CALLED BACK WITH '" + obj + "'" );
-            }
-        });
-```
-
-You'll note the ``ResponseHandler`` callback is parameterized on String - you can get your content as a
-string, byte array, InputStream or Netty ByteBuf.  You can also pass other types;  Jackson is used to
-deserialize JSON, and is the default for unknown types (this may fail if Jackson does not know how to
-serialize it).
 
 
 Status & To-Dos
@@ -81,8 +84,8 @@ changing, including occasional incompatible changes.  Here are some things that 
 
  * Support for caching and automatically setting cookies
    * With offline persistence?
- * Caching on disk or in memory with propert use of ``If-Modified-Since`` and ``If-None-Match`` headers
- * Zero copy file streaming
+ * Caching on disk or in memory with proper use of ``If-Modified-Since`` and ``If-None-Match`` headers
+ * Zero copy file streaming using Netty's FileRegion
  * Real trust/keystores for HTTPS (currently using the dummy keystore implementation from 
 Netty's secure chat example, which works but is not secure)
  * Better tests (actually start a local server, etc)
