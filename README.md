@@ -57,10 +57,12 @@ encoding individually if you want.
 or much more simply:
 
 ```java
-	        ResponseFuture h = client.get().setURL("http://localhost:9333/foo/bar")).execute(new ResponseHandler<String>(String.class){
-            @Override
-            protected void receive(HttpResponseStatus status, HttpHeaders headers, String response) {
-                System.out.println("CALLED BACK WITH '" + obj + "'");
+	ResponseFuture h = client
+		.get().setURL( "http://localhost:9333/foo/bar" ))
+		.execute( new ResponseHandler<String>(String.class){
+
+            protected void receive( HttpResponseStatus status, HttpHeaders headers, String response ) {
+                System.out.println( "CALLED BACK WITH '" + obj + "'" );
             }
         });
 ```
