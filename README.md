@@ -90,3 +90,8 @@ changing, including occasional incompatible changes.  Here are some things that 
 Netty's secure chat example, which works but is not secure)
  * Better tests (actually start a local server, etc)
 
+License
+-------
+
+MIT license - do what thou wilt, give credit where it's due
+
