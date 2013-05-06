@@ -51,7 +51,8 @@ encoding individually if you want.
                 }
             }
 
-        }).execute();```
+        }).execute();
+```
 
 or much more simply:
 
@@ -61,7 +62,8 @@ or much more simply:
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String response) {
                 System.out.println("CALLED BACK WITH '" + obj + "'");
             }
-        });```
+        });
+```
 
 You'll note the ``ResponseHandler`` callback is parameterized on String - you can get your content as a
 string, byte array, InputStream or Netty ByteBuf.  You can also pass other types;  Jackson is used to
