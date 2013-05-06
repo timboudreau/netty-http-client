@@ -20,6 +20,8 @@ Features
  * Non-blocking, asynchronous
  * Small, low-surface-area API
 
+Read the [javadoc](http://timboudreau.com/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/netty-http-client/netty-http-client/target/apidocs/index.html).  The header writing/parsing classes come from [acteur-util](http://timboudreau.com/builds/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/acteur-modules/acteur-parent/acteur-util/target/apidocs/index.html); some URL-related classes are [documented here](http://timboudreau.com/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/acteur-modules/acteur-parent/url/target/apidocs/index.html)
+
 Usage
 -----
 
