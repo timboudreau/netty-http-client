@@ -36,7 +36,7 @@ by providing a ``Receiver<State<?>>`` when you build a request;  there are state
 things like Connecting, HeadersReceived;  you can even capture every chunk of chunked
 encoding individually if you want.  
 
-	```java
+```java
         ResponseFuture f = client.get()
                 .setURL( "http://localhost:9333/foo/bar" )
                 .setBody( "This is a test", MediaType.PLAIN_TEXT_UTF_8)
@@ -54,7 +54,7 @@ encoding individually if you want.
 
 or much more simply:
 
-	```java
+```java
 	        ResponseFuture h = client.get().setURL("http://localhost:9333/foo/bar")).execute(new ResponseHandler<String>(String.class){
             @Override
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String response) {
