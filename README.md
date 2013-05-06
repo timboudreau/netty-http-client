@@ -31,7 +31,7 @@ The first thing you need is an ``HttpClient``:
 
 There are two ways to pay attention to the result of an HTTP call - you can listen
 for <code>State</code> objects which exist for every state transition in the process
-of making a request and handling the response;  or you can provide a simple which
+of making a request and handling the response;  or you can provide a simpler callback which
 will be called with the response once it arrives.  First, you can get all the details
 by providing a ``Receiver<State<?>>`` when you build a request;  there are states for
 things like Connecting, HeadersReceived;  you can even capture every chunk of chunked
