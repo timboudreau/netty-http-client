@@ -50,19 +50,16 @@ public class HttpClientTest {
                 .setURL("http://localhost:9333/foo/bar")
                 .setBody("This is a test", MediaType.PLAIN_TEXT_UTF_8)
                 .onEvent(new Receiver<State<?>>() {
-
-            @Override
-            public void receive(State<?> object) {
-                System.out.println("STATE " + object + " " + object.name() + " " + object.get());
-                if (object.get() instanceof DefaultFullHttpRequest) {
-                    DefaultFullHttpRequest d = (DefaultFullHttpRequest) object.get();
+            public void receive(State<?> state) {
+                System.out.println("STATE " + state + " " + state.name() + " " + state.get());
+                if (state.stateType() == StateType.Finished) {
+                    DefaultFullHttpRequest d = (DefaultFullHttpRequest) state.get();
                     System.out.println("REQ HEADERS:");
                     for (Map.Entry<String,String> e : d.headers().entries()) {
                         System.out.println(e.getKey() + ": " + e.getValue());
                     }
                 }
             }
-            
         }).execute();
         f.await(5, TimeUnit.SECONDS);
     }
