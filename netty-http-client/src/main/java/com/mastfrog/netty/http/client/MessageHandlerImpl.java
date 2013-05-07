@@ -174,8 +174,6 @@ final class MessageHandlerImpl extends ChannelInboundMessageHandlerAdapter<Objec
                 String redirUrl = isRedirect(info, state.resp);
                 if (redirUrl != null) {
                     Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
-//                    System.out.println("FOLLOWING REDIRECT "
-//                            + meth + " " + redirUrl + " for " + state.resp.getStatus());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
                     RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null);
@@ -220,9 +218,7 @@ final class MessageHandlerImpl extends ChannelInboundMessageHandlerAdapter<Objec
         state.content.resetReaderIndex();
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.content.readableBytes() > 0) {
             state.fullResponseSent = true;
-
             info.handle.event(new State.FullContentReceived(state.content));
-
             DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.content);
             for (Map.Entry<String, String> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());

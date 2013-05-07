@@ -74,8 +74,9 @@ public final class ResponseFuture {
      *
      * @throws InterruptedException
      */
-    public void await() throws InterruptedException {
+    public ResponseFuture await() throws InterruptedException {
         latch.await();
+        return this;
     }
 
     /**
@@ -94,10 +95,11 @@ public final class ResponseFuture {
      * @return follows the contract of CountDownLatch.await()
      * @throws InterruptedException
      */
-    public boolean await(long l, TimeUnit tu) throws InterruptedException {
+    public ResponseFuture await(long l, TimeUnit tu) throws InterruptedException {
         Checks.notNull("tu", tu);
         Checks.nonNegative("l", l);
-        return latch.await(l, tu);
+        latch.await(l, tu);
+        return this;
     }
 
     /**

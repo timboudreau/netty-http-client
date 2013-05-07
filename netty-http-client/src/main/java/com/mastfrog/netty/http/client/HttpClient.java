@@ -306,7 +306,6 @@ public final class HttpClient {
             if (!url.isValid()) {
                 throw new IllegalArgumentException(url.getProblems() + "");
             }
-            System.out.println(req.getMethod() + " " + req.getUri());
             if (info == null) {
                 info = new RequestInfo(url, req, cancelled, handle, r);
             }
