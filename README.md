@@ -99,3 +99,52 @@ License
 
 MIT license - do what thou wilt, give credit where it's due
 
+Test Harness (netty-http-test-harness)
+======================================
+
+Alongside this project is the ``netty-http-test-harness`` project.  It provides
+a fluent interface for writing tests of an HTTP server.  The server can be anything - 
+the ``Server`` interface has no particular dependencies (but is implemented in
+[Acteur](http://github.com/timboudreau/acteur) if you're using that) - it just has
+start/stop methods and a port property.
+
+The point is to make it very little code or setup to test something.
+
+Basically you construct a ``TestHarness`` instance - passing it a ``Server``, a
+``URL`` for the base URL and a ``ShutdownHookRegistry`` (another simple interface,
+from [Giulius](http://github.com/timboudreau/giulius).  Or to do it the easy way, 
+and use ``TestHarness.Module`` and [Giulius-Tests](https://github.com/timboudreau/giulius-tests)
+as in [this example](https://github.com/timboudreau/acteur/blob/master/acteur-resources/src/test/java/com/mastfrog/acteur/resources/StaticResourcesTest.java).
+
+Here's an example:
+
+```java
+        DateTime helloLastModified = har.get("static/hello.txt").go()
+                .assertHasContent()
+                .assertStatus(OK)
+                .assertHasHeader(Headers.LAST_MODIFIED.name())
+                .assertHasHeader(Headers.ETAG.name())
+                .assertContent(HELLO_CONTENT)
+                .getHeader(Headers.LAST_MODIFIED);
+
+        DateTime aLastModified = har.get("static/another.txt").go()
+                .assertStatus(OK)
+                .assertHasContent()
+                .assertHasHeader(Headers.LAST_MODIFIED.name())
+                .assertHasHeader(Headers.ETAG.name())
+                .assertContent("This is another file.  It has some data in it.\n")
+                .getHeader(Headers.LAST_MODIFIED);
+
+        assertNotNull(helloLastModified);
+        assertNotNull(aLastModified);
+
+        har.get("static/hello.txt")
+                .addHeader(Headers.IF_MODIFIED_SINCE, helloLastModified)
+                .go()
+                .assertStatus(NOT_MODIFIED);
+
+        har.get("static/another.txt")
+                .addHeader(Headers.IF_MODIFIED_SINCE, aLastModified)
+                .go().assertStatus(NOT_MODIFIED);
+```
+

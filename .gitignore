@@ -5,3 +5,4 @@
 *.war
 *.ear
 /netty-http-client/target/
+/netty-http-test-harness/target/
