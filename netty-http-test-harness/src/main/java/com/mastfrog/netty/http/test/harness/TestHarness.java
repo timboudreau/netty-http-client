@@ -9,6 +9,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.util.HeaderValueType;
+import com.mastfrog.acteur.util.Headers;
 import com.mastfrog.acteur.util.Method;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.ShutdownHookRegistry;
@@ -52,7 +53,11 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
+import io.netty.handler.codec.http.Cookie;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.locks.Condition;
+import static org.junit.Assert.fail;
 
 /**
  * A general purpose test harness for Web applications. Note: Your module should
@@ -71,10 +76,11 @@ public class TestHarness implements ErrorInterceptor {
     private final int port;
 
     @Inject
-    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg) throws IOException {
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
-        client = HttpClient.builder().noCompression().followRedirects().build();
+        this.client = client;
+//        client = HttpClient.builder().noCompression().followRedirects().build();
         reg.add(new Shutdown());
     }
 
@@ -335,8 +341,15 @@ public class TestHarness implements ErrorInterceptor {
             return bldr.toURL();
         }
 
+        private boolean log;
+
+        public TestRequestBuilder log() {
+            this.log = true;
+            return this;
+        }
+
         public CallResult go() {
-            CallResultImpl impl = new CallResultImpl(toURL(), timeout);
+            CallResultImpl impl = new CallResultImpl(toURL(), timeout, log);
             onEvent(impl);
             impl.future = execute();
             return impl;
@@ -355,7 +368,8 @@ public class TestHarness implements ErrorInterceptor {
         private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new HashMap<StateType, CountDownLatch>());
         private final Duration timeout;
 
-        private CallResultImpl(URL toURL, Duration timeout) {
+        private CallResultImpl(URL toURL, Duration timeout, boolean log) {
+            this.log = log;
             this.url = toURL;
             for (StateType type : StateType.values()) {
                 latches.put(type, new NamedLatch(type.name()));
@@ -431,8 +445,8 @@ public class TestHarness implements ErrorInterceptor {
                     break;
                 case Closed:
                     for (CountDownLatch latch : latches.values()) {
-                        latch.countDown();
-                    }
+                    latch.countDown();
+                }
                     break;
                 case Finished:
                 case HeadersReceived:
@@ -605,6 +619,18 @@ public class TestHarness implements ErrorInterceptor {
             return this;
         }
 
+        public <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws InterruptedException {
+            HttpHeaders h = waitForHeaders(hdr.name());
+            List<String> all = h.getAll(hdr.name());
+            List<T> result = new LinkedList<>();
+            if (all != null) {
+                for (String s : all) {
+                    result.add(hdr.toValue(s));
+                }
+            }
+            return result;
+        }
+
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", h);
@@ -773,9 +799,32 @@ public class TestHarness implements ErrorInterceptor {
             }
             this.content.set(content);
         }
+
+        public CallResult assertHasCookie(String name) throws Throwable {
+            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
+                if (name.equals(ck.getName())) {
+                    return this;
+                }
+            }
+            fail("No cookie named '" + name + "' in " + getHeaders(Headers.SET_COOKIE));
+            return this;
+        }
+
+        public CallResult assertCookieValue(String name, String val) throws Throwable {
+            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
+                if (name.equals(ck.getName())) {
+                    assertEquals(val, ck.getValue());
+                }
+            }
+            return this;
+        }
     }
 
     public interface CallResult {
+
+        CallResult assertCookieValue(String name, String value) throws Throwable;
+
+        CallResult assertHasCookie(String name) throws Throwable;
 
         CallResult assertStateSeen(StateType type) throws Throwable;
 
@@ -812,6 +861,8 @@ public class TestHarness implements ErrorInterceptor {
         <T> CallResult assertContentNotEquals(Class<T> type, T compareTo) throws Throwable;
 
         <T> CallResult assertHasContent() throws Throwable;
+
+        <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws Throwable;
     }
 
     private static class NamedLatch extends CountDownLatch {

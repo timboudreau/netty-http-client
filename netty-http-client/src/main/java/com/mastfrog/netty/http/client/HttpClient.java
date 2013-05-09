@@ -46,6 +46,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.AttributeKey;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +71,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * string, a byte array or decoded JSON simply based on the type of callback you
  * provide.
  * <p/>
- * <pre>
+ * <
+ * pre>
  * HttpClient client = HttpClient.builder().useCompression().build();
  * ResponseHandler&lt;String&gt; receiver = new
  * ResponseHandler&lt;&gt;(String.class) { public void receive(String body) { //
@@ -103,7 +105,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * can examine every chunk of a chunked response by adding a listener for
  * State.ContentReceived:
  * <p/>
- * <pre>
+ * <
+ * pre>
  * bldr.on(State.ContentReceived.class, new Receiver&lt;ByteBuf&gt;(){ public
  * void receive(ByteBuf buf) { ... } })
  * </pre> If you just want a Netty
@@ -131,6 +134,10 @@ public final class HttpClient {
     private final String userAgent;
     private final List<RequestInterceptor> interceptors;
     private final Iterable<ChannelOptionSetting> settings;
+
+    public HttpClient() {
+        this(false, 128 * 1024, 8, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList());
+    }
 
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
@@ -219,7 +226,7 @@ public final class HttpClient {
     private <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
         bootstrap.option(setting.option(), setting.value());
     }
-    
+
     private synchronized Bootstrap start() {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
