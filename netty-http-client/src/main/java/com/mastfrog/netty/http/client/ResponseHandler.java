@@ -97,7 +97,6 @@ public abstract class ResponseHandler<T> {
     }
 
     void _doReceive(HttpResponseStatus status, HttpHeaders headers, T obj) {
-        System.out.println("_doReceive " + status + " - " + obj);
         receive(status, headers, obj);
         receive(status, obj);
         receive(obj);
@@ -113,7 +112,6 @@ public abstract class ResponseHandler<T> {
     }
 
     protected void onErrorResponse(String content) {
-        System.out.println("ERROR: " + content);
     }
 
     protected void onErrorResponse(HttpResponseStatus status, String content) {

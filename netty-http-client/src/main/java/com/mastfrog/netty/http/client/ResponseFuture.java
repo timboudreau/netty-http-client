@@ -28,10 +28,12 @@ import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.joda.time.DateTime;
 
 /**
  * Returned from launching an HTTP request; attach handlers using the
@@ -42,13 +44,14 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @author Tim Boudreau
  */
-public final class ResponseFuture {
+public final class ResponseFuture implements Comparable<ResponseFuture> {
 
     AtomicBoolean cancelled;
-    final List<HandlerEntry<?>> handlers = new LinkedList<>();
-    final List<Receiver<State<?>>> any = new LinkedList<>();
+    final List<HandlerEntry<?>> handlers = new CopyOnWriteArrayList<>();
+    final List<Receiver<State<?>>> any = new CopyOnWriteArrayList<>();
     private volatile ChannelFuture future;
     private final CountDownLatch latch = new CountDownLatch(1);
+    private final DateTime start = DateTime.now();
 
     ResponseFuture(AtomicBoolean cancelled) {
         this.cancelled = cancelled;
@@ -57,7 +60,7 @@ public final class ResponseFuture {
     void setFuture(ChannelFuture fut) {
         future = fut;
     }
-    
+
     void trigger() {
         latch.countDown();
     }
@@ -152,7 +155,7 @@ public final class ResponseFuture {
         lastState.set(state.stateType());
         try {
             if (state instanceof State.Error && cancelled.get()) {
-                System.out.println("Suppressing error after cancel");
+                System.err.println("Suppressing error after cancel");
                 return;
             }
             if (state instanceof State.Error) {
@@ -202,6 +205,10 @@ public final class ResponseFuture {
      */
     @SuppressWarnings("unchecked")
     public <T> ResponseFuture on(StateType state, Receiver<T> receiver) {
+        StateType s = this.lastState.get();
+        if (s == StateType.Closed && state == StateType.Closed) {
+            receiver.receive(null);
+        }
         Class<? extends State<T>> type = (Class<? extends State<T>>) state.type();
         return on(type, (Receiver<T>) state.wrapperReceiver(receiver));
     }
@@ -220,5 +227,12 @@ public final class ResponseFuture {
         }
         handler.add(receiver);
         return this;
+    }
+
+    @Override
+    public int compareTo(ResponseFuture t) {
+        DateTime mine = this.start;
+        DateTime other = t.start;
+        return mine.compareTo(other);
     }
 }

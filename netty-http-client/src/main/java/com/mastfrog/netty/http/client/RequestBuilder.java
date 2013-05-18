@@ -149,7 +149,6 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             throw new IllegalStateException("URL not set");
         }
         URL u = getURL();
-        System.out.println("BUILD WITH " + entries.size() + " entries");
         String uri = u.getPathAndQuery();
         if (uri.isEmpty()) {
             uri = "/";
@@ -161,14 +160,8 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
         h.headers().add(HttpHeaders.Names.CONNECTION, "close");
         h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
-        System.out.println("HAVE A BODY? " + body);
-        System.out.println("REQ: " + mth + " " + uri + " on " + u.getHost());
-        System.out.println("HAVE " + entries.size() + " header entries");
         for (Entry<?> e : entries) {
             e.addTo(h.headers());
-        }
-        for (Map.Entry<String, String> e : h.headers().entries()) {
-            System.out.println(e.getKey() + ": " + e.getValue());
         }
         return h;
     }
@@ -181,7 +174,6 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     @Override
     public HttpRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
-        System.out.println("setBody " + o);
         if (o instanceof CharSequence) {
             CharSequence seq = (CharSequence) o;
             setBody(seq.toString().getBytes(CharsetUtil.UTF_8), contentType);
