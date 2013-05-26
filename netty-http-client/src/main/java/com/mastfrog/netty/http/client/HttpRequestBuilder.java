@@ -216,4 +216,9 @@ public interface HttpRequestBuilder {
      * @return A url
      */
     URL toURL();
+    
+    HttpRequestBuilder noHostHeader();
+    HttpRequestBuilder noConnectionHeader();
+    HttpRequestBuilder noDateHeader();
+    
 }

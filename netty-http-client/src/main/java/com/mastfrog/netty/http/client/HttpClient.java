@@ -248,7 +248,7 @@ public final class HttpClient {
             bootstrapSsl.group(group);
             bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
-            bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             for (ChannelOptionSetting setting : settings) {
                 option(bootstrap, setting);
             }
@@ -317,6 +317,12 @@ public final class HttpClient {
                 info = new RequestInfo(url, req, cancelled, handle, r);
             }
             handle.event(new State.Connecting());
+            //XXX who is escaping this?
+            req.setUri(req.getUri().replaceAll("%5f", "_"));
+            System.out.println("SEND " + req.getMethod() + " " + req.getUri());
+            for (Map.Entry<String,String> e : req.headers().entries()) {
+                System.out.println(e.getKey() + ": " + e.getValue());
+            }
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
             handle.setFuture(fut);
             fut.channel().attr(KEY).set(info);

@@ -144,6 +144,27 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         return url.create();
     }
 
+    private boolean noDateHeader;
+
+    public RequestBuilder noDateHeader() {
+        noDateHeader = true;
+        return this;
+    }
+
+    private boolean noConnectionHeader;
+
+    public RequestBuilder noConnectionHeader() {
+        noConnectionHeader = true;
+        return this;
+    }
+
+    private boolean noHostHeader;
+
+    public RequestBuilder noHostHeader() {
+        noHostHeader = true;
+        return this;
+    }
+
     public HttpRequest build() {
         if (url == null) {
             throw new IllegalStateException("URL not set");
@@ -157,15 +178,21 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         DefaultHttpRequest h = body == null
                 ? new DefaultHttpRequest(version, mth, uri)
                 : new DefaultFullHttpRequest(version, mth, uri, body);
-        h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
-        h.headers().add(HttpHeaders.Names.CONNECTION, "close");
-        h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
         for (Entry<?> e : entries) {
             e.addTo(h.headers());
         }
+        if (!noHostHeader) {
+            h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
+        }
+        if (!h.headers().contains(HttpHeaders.Names.CONNECTION) && !noConnectionHeader) {
+            h.headers().add(HttpHeaders.Names.CONNECTION, "close");
+        }
+        if (!noDateHeader) {
+            h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
+        }
         return h;
     }
-    
+
     public URL toURL() {
         return url.create();
     }
