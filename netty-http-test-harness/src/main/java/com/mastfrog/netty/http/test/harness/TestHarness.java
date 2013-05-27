@@ -354,6 +354,24 @@ public class TestHarness implements ErrorInterceptor {
             impl.future = execute();
             return impl;
         }
+
+        @Override
+        public HttpRequestBuilder noHostHeader() {
+            bldr.noHostHeader();
+            return this;
+        }
+
+        @Override
+        public HttpRequestBuilder noConnectionHeader() {
+            bldr.noConnectionHeader();
+            return this;
+        }
+
+        @Override
+        public HttpRequestBuilder noDateHeader() {
+            bldr.noDateHeader();
+            return this;
+        }
     }
 
     private static final class CallResultImpl extends Receiver<State<?>> implements CallResult, Runnable {
