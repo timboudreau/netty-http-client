@@ -136,7 +136,7 @@ public final class HttpClient {
     private final Iterable<ChannelOptionSetting> settings;
 
     public HttpClient() {
-        this(false, 128 * 1024, 8, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList());
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList());
     }
 
     public HttpClient(boolean compress, int maxChunkSize, int threads,

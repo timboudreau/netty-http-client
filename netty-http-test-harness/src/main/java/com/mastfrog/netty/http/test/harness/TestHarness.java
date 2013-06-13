@@ -80,7 +80,6 @@ public class TestHarness implements ErrorInterceptor {
         this.server = server;
         port = settings.getInt("testPort", findPort());
         this.client = client;
-//        client = HttpClient.builder().noCompression().followRedirects().build();
         reg.add(new Shutdown());
     }
 
@@ -442,7 +441,7 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public void receive(State<?> state) {
             if (log) {
-                System.out.println(url.getPathAndQuery() + " - " + state.name());
+                System.out.println(url.getPathAndQuery() + " - " + state.name() + " - " + state.get());
             }
             states.add(state.stateType());
             latches.get(state.stateType()).countDown();
@@ -463,8 +462,8 @@ public class TestHarness implements ErrorInterceptor {
                     break;
                 case Closed:
                     for (CountDownLatch latch : latches.values()) {
-                    latch.countDown();
-                }
+                        latch.countDown();
+                    }
                     break;
                 case Finished:
                 case HeadersReceived:
@@ -568,8 +567,7 @@ public class TestHarness implements ErrorInterceptor {
             if (HttpResponseStatus.CONTINUE != status && HttpResponseStatus.CONTINUE.equals(this.getStatus()) || getStatus() == null) {
                 await(Closed);
             }
-
-            assertNotNull("Status never sent", this.getStatus());
+            assertNotNull("Status never sent, expected " + status, this.getStatus());
             assertEquals(status, this.getStatus());
             return this;
         }
