@@ -24,7 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelInboundMessageHandlerAdapter;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpClientCodec;
@@ -40,13 +40,13 @@ import javax.net.ssl.SSLEngine;
  */
 class Initializer extends ChannelInitializer<Channel> {
 
-    private final ChannelInboundMessageHandlerAdapter<Object> handler;
+    private final ChannelInboundHandlerAdapter handler;
     private final boolean ssl;
     private final int maxChunkSize;
     private final int maxInitialLineLength;
     private final boolean compress;
 
-    public Initializer(ChannelInboundMessageHandlerAdapter<Object> handler, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
+    public Initializer(ChannelInboundHandlerAdapter handler, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
         this.handler = handler;
         this.ssl = ssl;
         this.maxChunkSize = maxChunkSize;
