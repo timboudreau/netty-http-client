@@ -336,7 +336,7 @@ public final class HttpClient {
                     }
                     handle.event(new State.Connected(future.channel()));
                     handle.event(new State.SendRequest(req));
-                    future = future.channel().write(req);
+                    future = future.channel().writeAndFlush(req);
                     future.addListener(new ChannelFutureListener() {
 
                         @Override

@@ -32,7 +32,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.MessageList;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -163,15 +162,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     public static final int MAX_REDIRECTS = 15;
 
-    @Override
-    public void messageReceived(final ChannelHandlerContext ctx, final MessageList<Object> msgs) throws Exception {
-        for (Object o : msgs) {
-            // API change in netty - see http://netty.io/news/2013/06/18/4-0-0-CR5.html
-            netty4messageReceived(ctx, o);
-        }
-    }
-    
-    private void netty4messageReceived(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
             return;
