@@ -319,10 +319,6 @@ public final class HttpClient {
             handle.event(new State.Connecting());
             //XXX who is escaping this?
             req.setUri(req.getUri().replaceAll("%5f", "_"));
-            System.out.println("SEND " + req.getMethod() + " " + req.getUri());
-            for (Map.Entry<String,String> e : req.headers().entries()) {
-                System.out.println(e.getKey() + ": " + e.getValue());
-            }
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
             handle.setFuture(fut);
             fut.channel().attr(KEY).set(info);

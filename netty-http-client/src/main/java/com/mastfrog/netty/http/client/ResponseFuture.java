@@ -155,7 +155,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         lastState.set(state.stateType());
         try {
             if (state instanceof State.Error && cancelled.get()) {
-                System.err.println("Suppressing error after cancel");
+//                System.err.println("Suppressing error after cancel");
                 return;
             }
             if (state instanceof State.Error) {
