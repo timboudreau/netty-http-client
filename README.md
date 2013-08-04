@@ -33,7 +33,7 @@ The first thing you need is an ``HttpClient``:
 	HttpClient client = HttpClient.builder().followRedirects().build();
 ```
 
-There are two ways to pay attention to the result of an HTTP call - you can listen
+There are two ways to pay attention to the results of an HTTP call - you can listen
 for <code>State</code> objects which exist for every state transition in the process
 of making a request and handling the response;  or you can provide a simpler callback which
 will be called with the response once it arrives.  This looks like
