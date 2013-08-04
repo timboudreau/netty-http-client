@@ -3,7 +3,7 @@ Netty HTTP Client
 
 An asynchronous http client in Java, with a clean, callback-based API, using Netty 4.x.
 
-The API here is inspired a bit by [Node.js](http://nodejs.org)
+The API is inspired a bit by [Node.js](http://nodejs.org)
 ``http`` module; it is designed to (mostly) avoid the 
 Future pattern, and do its business via callbacks.  Wherever possible we avoid
 introducing complicated abstractions that try to hide the business of HTTP
