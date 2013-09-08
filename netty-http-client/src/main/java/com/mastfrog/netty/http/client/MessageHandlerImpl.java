@@ -62,7 +62,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (!info.cancelled.get()) {
             // Premature close, which is a legitimate way of ending a request
