@@ -37,6 +37,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -355,9 +356,12 @@ public final class HttpClient {
 
     private static final class NioChannelFactory implements ChannelFactory {
 
-        @Override
         public Channel newChannel() {
-            return new NioSocketChannel();
+            return new NioSocketChannel(null);
+        }
+
+        public Channel newChannel(EventLoop eventLoop) {
+            return new NioSocketChannel(eventLoop);
         }
     }
 
