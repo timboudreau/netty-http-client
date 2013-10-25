@@ -293,7 +293,7 @@ public final class HttpClient {
     private Bootstrap bootstrap;
     private Bootstrap bootstrapSsl;
 
-    static final AttributeKey<RequestInfo> KEY = new AttributeKey<>("info");
+    static final AttributeKey<RequestInfo> KEY = AttributeKey.<RequestInfo>valueOf("info");
 
     private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info) {
         if (cancelled.get()) {

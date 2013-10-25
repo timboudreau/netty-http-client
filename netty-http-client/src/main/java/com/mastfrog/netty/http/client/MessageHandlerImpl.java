@@ -106,7 +106,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         }
     }
 
-    public static final AttributeKey<ResponseState> RS = new AttributeKey<>("state");
+    public static final AttributeKey<ResponseState> RS = AttributeKey.<ResponseState>valueOf("state");
 
     private ResponseState state(ChannelHandlerContext ctx) {
         Attribute<ResponseState> st = ctx.channel().attr(RS);
