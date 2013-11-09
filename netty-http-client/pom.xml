@@ -10,10 +10,8 @@
     </parent>
     <artifactId>netty-http-client</artifactId>
     <packaging>jar</packaging>
-
     <name>Netty Http Client</name>
     <description>An asynchronous HTTP client library based on Netty 4.x</description>
-    <url>https://github.com/timboudreau/netty-http-client</url>
     <scm>
         <connection>git://github.com/timboudreau/netty-http-client.git</connection>
         <developerConnection>git@github.com:timboudreau/netty-http-client.git</developerConnection>
@@ -53,12 +51,10 @@
         <dependency>
             <groupId>org.javassist</groupId>
             <artifactId>javassist</artifactId>
-            <version>3.17.1-GA</version>
         </dependency>
         <dependency>
             <groupId>com.jcraft</groupId>
             <artifactId>jzlib</artifactId>
-            <version>1.1.2</version>
             <type>jar</type>
         </dependency>
     </dependencies>
