@@ -47,6 +47,8 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.AttributeKey;
+import java.io.IOException;
+import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -357,11 +359,15 @@ public final class HttpClient {
     private static final class NioChannelFactory implements ChannelFactory {
 
         public Channel newChannel() {
-            return new NioSocketChannel(null);
+            try {
+                return new NioSocketChannel(SocketChannel.open());
+            } catch (IOException ioe) {
+                return Exceptions.chuck(ioe);
+            }
         }
 
         public Channel newChannel(EventLoop eventLoop) {
-            return new NioSocketChannel(eventLoop);
+            return newChannel();
         }
     }
 
