@@ -39,7 +39,7 @@ final class RequestInfo {
     final ResponseFuture handle;
     final ResponseHandler<?> r;
     final AtomicInteger redirectCount = new AtomicInteger();
-
+    volatile boolean listenerAdded;
     public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r) {
         this.url = url;
         this.req = req;

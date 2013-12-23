@@ -54,6 +54,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
 import io.netty.handler.codec.http.Cookie;
+import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.locks.Condition;
@@ -376,13 +377,13 @@ public class TestHarness implements ErrorInterceptor {
     private static final class CallResultImpl extends Receiver<State<?>> implements CallResult, Runnable {
 
         private final URL url;
-        private Set<StateType> states = Sets.newCopyOnWriteArraySet();
-        private AtomicReference<HttpResponseStatus> status = new AtomicReference<>();
-        private AtomicReference<HttpHeaders> headers = new AtomicReference<>();
-        private AtomicReference<ByteBuf> content = new AtomicReference<>();
+        private final Set<StateType> states = Sets.newCopyOnWriteArraySet();
+        private final AtomicReference<HttpResponseStatus> status = new AtomicReference<>();
+        private final AtomicReference<HttpHeaders> headers = new AtomicReference<>();
+        private final AtomicReference<ByteBuf> content = new AtomicReference<>();
         private volatile ResponseFuture future;
         private Throwable err;
-        private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new HashMap<StateType, CountDownLatch>());
+        private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, CountDownLatch>(StateType.class));
         private final Duration timeout;
 
         private CallResultImpl(URL toURL, Duration timeout, boolean log) {

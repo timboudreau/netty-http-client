@@ -29,6 +29,8 @@ import com.mastfrog.url.URL;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -162,12 +164,12 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     public static final int MAX_REDIRECTS = 15;
 
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
+    public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
+        final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
             return;
         }
-        ResponseState state = state(ctx);
+        final ResponseState state = state(ctx);
         if (msg instanceof HttpResponse) {
             state.resp = (HttpResponse) msg;
             if (followRedirects) {
@@ -209,6 +211,22 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 sendFullResponse(ctx);
             }
         }
+//        if (!info.listenerAdded) {
+//            info.listenerAdded = true;
+//            // Handle the case of really old HTTP 1.0 style requests where there
+//            // is no content-length, and the response is terminated by the server
+//            // closing the connection
+//            ctx.channel().closeFuture().addListener(new ChannelFutureListener(){
+//
+//                @Override
+//                public void operationComplete(ChannelFuture f) throws Exception {
+//                    state.content.resetReaderIndex();
+//                    info.handle.event(new State.Closed());
+//                    System.out.println("Termination close");
+//                    sendFullResponse(ctx);
+//                }
+//            });
+//        }
     }
 
     void sendFullResponse(ChannelHandlerContext ctx) {
