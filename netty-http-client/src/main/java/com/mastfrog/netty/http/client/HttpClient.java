@@ -24,7 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.ImmutableList;
-import com.mastfrog.acteur.util.Method;
+import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;

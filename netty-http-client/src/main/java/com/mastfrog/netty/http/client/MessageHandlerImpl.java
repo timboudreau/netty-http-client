@@ -23,8 +23,8 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.mastfrog.acteur.util.Headers;
-import com.mastfrog.acteur.util.Method;
+import com.mastfrog.acteur.headers.Headers;
+import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.url.URL;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;

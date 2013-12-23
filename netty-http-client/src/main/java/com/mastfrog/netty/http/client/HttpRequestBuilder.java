@@ -24,7 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import com.google.common.net.MediaType;
-import com.mastfrog.acteur.util.HeaderValueType;
+import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
