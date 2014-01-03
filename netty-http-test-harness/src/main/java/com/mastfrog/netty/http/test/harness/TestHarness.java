@@ -38,7 +38,6 @@ import java.lang.reflect.Array;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -595,7 +594,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         @Override
-        public CallResult assertHasHeader(String name) throws Throwable {
+        public CallResult assertHasHeader(CharSequence name) throws Throwable {
             await(HeadersReceived);
             assertNotNull("Headers never sent", getHeaders());
             String val = getHeaders().get(name);
@@ -869,7 +868,7 @@ public class TestHarness implements ErrorInterceptor {
 
         StateType state();
 
-        CallResult assertHasHeader(String name) throws Throwable;
+        CallResult assertHasHeader(CharSequence name) throws Throwable;
 
         <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException;
 
