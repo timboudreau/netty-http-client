@@ -23,7 +23,6 @@
  */
 package com.mastfrog.netty.http.client;
 
-import io.netty.handler.ssl.SslHandler;
 
 import java.security.KeyStore;
 import java.security.SecureRandom;

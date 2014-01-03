@@ -606,21 +606,21 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable {
             waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", getHeaders());
-            String val = getHeaders().get(hdr.name());
+            String val = getHeaders().get(hdr.name().toString());
             assertNotNull("No value for '" + hdr.name() + "' in \n" + headersToString(), val);
             T obj = hdr.toValue(val);
             assertEquals(value, obj);
             return this;
         }
 
-        private HttpHeaders waitForHeaders(String lookingFor) throws InterruptedException {
+        private HttpHeaders waitForHeaders(CharSequence lookingFor) throws InterruptedException {
             await(HeadersReceived);
             HttpHeaders h = getHeaders();
             if (h == null) {
                 await(Closed);
                 h = getHeaders();
             } else {
-                String s = h.get(lookingFor);
+                String s = h.get(lookingFor.toString());
                 if (s == null) {
                     await(Closed);
                 }
@@ -631,14 +631,14 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHeaderNotEquals(HeaderValueType<T> hdr, T value) throws Throwable {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never arrived", h);
-            T obj = hdr.toValue(h.get(hdr.name()));
+            T obj = hdr.toValue(h.get(hdr.name().toString()));
             assertNotEquals(value, obj);
             return this;
         }
 
         public <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
-            List<String> all = h.getAll(hdr.name());
+            List<String> all = h.getAll(hdr.name().toString());
             List<T> result = new LinkedList<>();
             if (all != null) {
                 for (String s : all) {
@@ -651,7 +651,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", h);
-            String result = h.get(hdr.name());
+            String result = h.get(hdr.name().toString());
             if (result != null) {
                 return hdr.toValue(result);
             }

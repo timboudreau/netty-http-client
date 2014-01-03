@@ -208,7 +208,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             setBody(Unpooled.wrappedBuffer((byte[]) o), contentType);
         } else if (o instanceof ByteBuf) {
             body = (ByteBuf) o;
-            addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
+            addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE.toString());
             addHeader(Headers.CONTENT_LENGTH, (long) body.readableBytes());
             addHeader(Headers.CONTENT_TYPE, contentType);
         } else if (o instanceof InputStream) {
@@ -287,7 +287,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         }
 
         void addTo(HttpHeaders h) {
-            h.add(type.name(), type.toString(value));
+            h.add(type.name().toString(), type.toString(value));
         }
     }
 }

@@ -358,16 +358,8 @@ public final class HttpClient {
 
     private static final class NioChannelFactory implements ChannelFactory {
 
-        public Channel newChannel() {
-            try {
-                return new NioSocketChannel(SocketChannel.open());
-            } catch (IOException ioe) {
-                return Exceptions.chuck(ioe);
-            }
-        }
-
         public Channel newChannel(EventLoop eventLoop) {
-            return newChannel();
+            return new NioSocketChannel(eventLoop);
         }
     }
 

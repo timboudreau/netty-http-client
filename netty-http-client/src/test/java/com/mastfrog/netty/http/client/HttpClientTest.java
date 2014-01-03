@@ -35,7 +35,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 /**
  *
@@ -79,7 +78,7 @@ public class HttpClientTest {
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
                 System.out.println("CALLED BACK WITH '" + obj + "'");
             }
-
+            
         });
         h.on(State.HeadersReceived.class, new Receiver<HttpResponse>() {
 
