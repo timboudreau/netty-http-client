@@ -143,8 +143,8 @@ public class TestHarness implements ErrorInterceptor {
         public void run() {
             client.shutdown();
             try {
-                if (server != null) {
-                    server.shutdown(true);
+                if (serverStart != null) {
+                    serverStart.signalAll();
                 }
             } catch (Exception ex) {
                 Exceptions.printStackTrace(ex);
