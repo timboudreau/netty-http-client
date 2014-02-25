@@ -569,7 +569,10 @@ public class TestHarness implements ErrorInterceptor {
                 await(Closed);
             }
             assertNotNull("Status never sent, expected " + status, this.getStatus());
-            assertEquals(status, this.getStatus());
+            HttpResponseStatus st = this.getStatus();
+            if (!status.equals(st)) {
+                throw new AssertionError("Expected " + status + " got " + st + ": " + content());
+            }
             return this;
         }
 
