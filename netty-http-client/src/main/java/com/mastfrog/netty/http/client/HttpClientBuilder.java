@@ -44,7 +44,7 @@ public final class HttpClientBuilder {
     private boolean followRedirects = true;
     private String userAgent;
     private final List<RequestInterceptor> interceptors = new LinkedList<>();
-
+    private boolean send100continue = true;
     /**
      * HTTP requests will transparently load a redirects. Note that this means
      * that handlers for events such as Connected may be called more than once -
@@ -56,7 +56,17 @@ public final class HttpClientBuilder {
         followRedirects = true;
         return this;
     }
+    
+    public HttpClientBuilder send100Continue() {
+        send100continue = true;
+        return this;
+    }
 
+    public HttpClientBuilder dontSend100Continue() {
+        send100continue = false;
+        return this;
+    }
+    
     /**
      * Turn off following of redirects
      * @return this
@@ -138,7 +148,7 @@ public final class HttpClientBuilder {
     public HttpClient build() {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
-                userAgent, interceptors, settings);
+                userAgent, interceptors, settings, send100continue);
     }
 
     /**

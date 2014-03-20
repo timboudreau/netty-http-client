@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -52,6 +52,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -137,16 +138,17 @@ public final class HttpClient {
     private final String userAgent;
     private final List<RequestInterceptor> interceptors;
     private final Iterable<ChannelOptionSetting> settings;
+    private final boolean send100continue;
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList());
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true);
     }
 
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
-            Iterable<ChannelOptionSetting> settings) {
-        group = new NioEventLoopGroup(threads);
+            Iterable<ChannelOptionSetting> settings, boolean send100continue) {
+        group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
         this.maxChunkSize = maxChunkSize;
@@ -156,6 +158,17 @@ public final class HttpClient {
         this.interceptors = new ImmutableList.Builder<RequestInterceptor>()
                 .addAll(interceptors).build();
         this.settings = settings;
+        this.send100continue = send100continue;
+    }
+
+    private static class TF implements ThreadFactory {
+        private int ct = 0;
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "HttpClient event loop " + ++ct);
+            t.setDaemon(true);
+            return t;
+        }
     }
 
     /**
@@ -263,9 +276,13 @@ public final class HttpClient {
     /**
      * Shut down any running connections
      */
+    @SuppressWarnings("deprecation")
     public void shutdown() {
         if (group != null) {
             group.shutdownGracefully(0, 10, TimeUnit.SECONDS);
+            if (!group.isTerminated()) {
+                group.shutdownNow();
+            }
         }
     }
 
@@ -375,6 +392,7 @@ public final class HttpClient {
 
         RB(Method method) {
             super(method);
+            this.send100Continue = HttpClient.this.send100continue;
         }
 
         @Override

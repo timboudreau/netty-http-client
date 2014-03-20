@@ -196,8 +196,9 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     public URL toURL() {
         return url.create();
     }
-
+    
     private ByteBuf body;
+    boolean send100Continue = true;
 
     @Override
     public HttpRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
@@ -208,7 +209,9 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             setBody(Unpooled.wrappedBuffer((byte[]) o), contentType);
         } else if (o instanceof ByteBuf) {
             body = (ByteBuf) o;
-            addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
+            if (send100Continue) {
+                addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
+            }
             addHeader(Headers.CONTENT_LENGTH, (long) body.readableBytes());
             addHeader(Headers.CONTENT_TYPE, contentType);
         } else if (o instanceof InputStream) {
