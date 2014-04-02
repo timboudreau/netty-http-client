@@ -128,6 +128,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Tim Boudreau
  */
 public final class HttpClient {
+public final class HttpClient {
 
     private final NioEventLoopGroup group;
     final boolean compress;
@@ -266,7 +267,7 @@ public final class HttpClient {
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             for (ChannelOptionSetting setting : settings) {
-                option(bootstrap, setting);
+                option(bootstrapSsl, setting);
             }
             bootstrapSsl.channelFactory(new NioChannelFactory());
         }
