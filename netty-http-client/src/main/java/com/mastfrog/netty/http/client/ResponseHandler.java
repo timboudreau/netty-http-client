@@ -23,12 +23,16 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
 import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.Streams;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.HttpHeaders;
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -87,6 +91,14 @@ public abstract class ResponseHandler<T> {
                 try {
                     Object o = mapper.readValue(b, type);
                     _doReceive(status, headers, type.cast(o));
+                } catch (JsonParseException ex) {
+                    content.resetReaderIndex();
+                    try {
+                        String s = Streams.readString(new ByteBufInputStream(content), "UTF-8");
+                        onErrorResponse(HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE, headers, s);
+                    } catch (IOException ex1) {
+                        Exceptions.chuck(ex1);
+                    }
                 } catch (Exception ex) {
                     Exceptions.chuck(ex);
                 }
