@@ -128,7 +128,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author Tim Boudreau
  */
 public final class HttpClient {
-public final class HttpClient {
 
     private final NioEventLoopGroup group;
     final boolean compress;
