@@ -358,8 +358,9 @@ public final class HttpClient {
 
     private static final class NioChannelFactory implements ChannelFactory {
 
-        public Channel newChannel(EventLoop eventLoop) {
-            return new NioSocketChannel(eventLoop);
+        @Override
+        public Channel newChannel() {
+            return new NioSocketChannel();
         }
     }
 

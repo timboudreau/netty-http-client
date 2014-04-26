@@ -12,6 +12,7 @@ import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
+import com.mastfrog.acteur.util.ServerControl;
 import com.mastfrog.giulius.ShutdownHookRegistry;
 import com.mastfrog.netty.http.client.HttpClient;
 import com.mastfrog.netty.http.client.HttpRequestBuilder;
@@ -56,7 +57,6 @@ import io.netty.handler.codec.http.Cookie;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.locks.Condition;
 import static org.junit.Assert.fail;
 
 /**
@@ -142,8 +142,8 @@ public class TestHarness implements ErrorInterceptor {
         public void run() {
             client.shutdown();
             try {
-                if (server != null) {
-                    server.shutdown(true);
+                if (serverStart != null) {
+                    serverStart.shutdown(true);
                 }
             } catch (Exception ex) {
                 Exceptions.printStackTrace(ex);
@@ -179,7 +179,7 @@ public class TestHarness implements ErrorInterceptor {
         return request(Method.TRACE, pathElements);
     }
 
-    private Condition serverStart;
+    private ServerControl serverStart;
 
     public TestRequestBuilder request(Method m, String... pathElements) {
         if (serverStart == null) {
