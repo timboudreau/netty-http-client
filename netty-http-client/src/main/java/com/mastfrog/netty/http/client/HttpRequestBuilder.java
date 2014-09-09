@@ -217,8 +217,29 @@ public interface HttpRequestBuilder {
      */
     URL toURL();
     
+    /**
+     * Don't sent the host header from the URL
+     * @return this
+     */
     HttpRequestBuilder noHostHeader();
+    /**
+     * Don't send the connection header
+     * @return this
+     */
     HttpRequestBuilder noConnectionHeader();
+    /**
+     * Don't create a Date: header
+     * @return this
+     */
     HttpRequestBuilder noDateHeader();
     
+    /**
+     * Set a cookie store which will be updated from Set-Cookie headers in the
+     * response, and which will decorate the request with any Cookies it has
+     * that match the request URL.
+     * 
+     * @param store The cookie store
+     * @return this
+     */
+    HttpRequestBuilder setCookieStore(CookieStore store);
 }

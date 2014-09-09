@@ -64,6 +64,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     final List<Entry<?>> entries = new LinkedList<>();
     private final Method method;
     private HttpVersion version = HttpVersion.HTTP_1_1;
+    protected CookieStore store;
 
     RequestBuilder(Method method) {
         this.method = method;
@@ -164,6 +165,11 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         noHostHeader = true;
         return this;
     }
+    
+    public RequestBuilder setCookieStore(CookieStore store) {
+        this.store = store;
+        return this;
+    }
 
     public HttpRequest build() {
         if (url == null) {
@@ -189,6 +195,9 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         }
         if (!noDateHeader) {
             h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
+        }
+        if (store != null) {
+            store.decorate(h);
         }
         return h;
     }

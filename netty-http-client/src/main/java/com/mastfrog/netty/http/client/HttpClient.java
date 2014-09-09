@@ -26,6 +26,7 @@ package com.mastfrog.netty.http.client;
 import com.google.common.collect.ImmutableList;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
+import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
@@ -46,6 +47,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
@@ -68,12 +70,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p/>
  * HTTP compression is supported.
  * <h3>Usage</h3>
- * Build a request, then call
- * <code>send()</code> on the builder to trigger sending the request. When
- * building the request, you can add handlers for different event types. So, for
- * example, if you're only interested in the content, you can receive that as a
- * string, a byte array or decoded JSON simply based on the type of callback you
- * provide.
+ * Build a request, then call <code>send()</code> on the builder to trigger
+ * sending the request. When building the request, you can add handlers for
+ * different event types. So, for example, if you're only interested in the
+ * content, you can receive that as a string, a byte array or decoded JSON
+ * simply based on the type of callback you provide.
  * <p/>
  * <
  * pre>
@@ -84,10 +85,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * client.get().setURL(URL.parse("http://mail-vm.timboudreau.org/blog/api-list"));
  * ResponseFuture h = bldr.execute(receiver);
  * </pre> When the request is completed, the callback will be invoked. There are
- * three
- * <code>receive</code> methods you can override which give you varying levels
- * of detail - the signature of the
- * <code>receive()</code> method could also be:
+ * three <code>receive</code> methods you can override which give you varying
+ * levels of detail - the signature of the <code>receive()</code> method could
+ * also be:
  * <pre>
  *      public void receive(HttpResponseStatus status, String body) {
  * </pre> or it could be
@@ -113,8 +113,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * pre>
  * bldr.on(State.ContentReceived.class, new Receiver&lt;ByteBuf&gt;(){ public
  * void receive(ByteBuf buf) { ... } })
- * </pre> If you just want a Netty
- * <code>HttpResponse</code> or
+ * </pre> If you just want a Netty <code>HttpResponse</code> or
  * <code>FullHttpResponse</code> just ask for a
  * <code>State.HeadersReceived</code> or a
  * <code>State.FullContentReceived</code> instead.
@@ -139,15 +138,17 @@ public final class HttpClient {
     private final List<RequestInterceptor> interceptors;
     private final Iterable<ChannelOptionSetting> settings;
     private final boolean send100continue;
+    private final CookieStore cookies;
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null);
     }
 
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
-            Iterable<ChannelOptionSetting> settings, boolean send100continue) {
+            Iterable<ChannelOptionSetting> settings, boolean send100continue,
+            CookieStore cookies) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -159,10 +160,13 @@ public final class HttpClient {
                 .addAll(interceptors).build();
         this.settings = settings;
         this.send100continue = send100continue;
+        this.cookies = cookies;
     }
 
     private static class TF implements ThreadFactory {
+
         private int ct = 0;
+
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r, "HttpClient event loop " + ++ct);
@@ -388,6 +392,20 @@ public final class HttpClient {
         }
     }
 
+    private static final class StoreHandler extends Receiver<HttpResponse> {
+
+        private final CookieStore store;
+
+        public StoreHandler(CookieStore store) {
+            this.store = store;
+        }
+
+        @Override
+        public void receive(HttpResponse headerContainer) {
+            store.extract(headerContainer.headers());
+        }
+    }
+
     private final class RB extends RequestBuilder {
 
         RB(Method method) {
@@ -409,9 +427,24 @@ public final class HttpClient {
             ResponseFuture handle = new ResponseFuture(cancelled);
             handle.handlers.addAll(super.handlers);
             handle.any.addAll(super.any);
+            CookieStore theStore = super.store;
+            if (theStore == null) {
+                theStore = HttpClient.this.cookies;
+            }
+            if (theStore != null) {
+                HandlerEntry<? extends HttpResponse> entry
+                        = createHandler(State.HeadersReceived.class, new StoreHandler(theStore));
+                handle.handlers.add(entry);
+            }
 
             submit(u, req, cancelled, handle, r, null);
             return handle;
+        }
+
+        private <T> HandlerEntry<T> createHandler(Class<? extends State<T>> event, Receiver<T> r) {
+            HandlerEntry<T> result = new HandlerEntry<T>(event);
+            result.add(r);
+            return result;
         }
 
         @Override

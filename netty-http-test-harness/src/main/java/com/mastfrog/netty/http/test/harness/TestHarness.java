@@ -13,6 +13,7 @@ import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.ShutdownHookRegistry;
+import com.mastfrog.netty.http.client.CookieStore;
 import com.mastfrog.netty.http.client.HttpClient;
 import com.mastfrog.netty.http.client.HttpRequestBuilder;
 import com.mastfrog.netty.http.client.ResponseFuture;
@@ -179,7 +180,7 @@ public class TestHarness implements ErrorInterceptor {
     public TestRequestBuilder trace(String... pathElements) {
         return request(Method.TRACE, pathElements);
     }
-
+    
     private Condition serverStart;
 
     public TestRequestBuilder request(Method m, String... pathElements) {
@@ -219,6 +220,11 @@ public class TestHarness implements ErrorInterceptor {
         public TestRequestBuilder setTimeout(Duration dur) {
             assertNotNull(dur);
             this.timeout = dur;
+            return this;
+        }
+
+        public TestRequestBuilder setCookieStore(CookieStore store) {
+            bldr.setCookieStore(store);
             return this;
         }
 

@@ -45,6 +45,8 @@ public final class HttpClientBuilder {
     private String userAgent;
     private final List<RequestInterceptor> interceptors = new LinkedList<>();
     private boolean send100continue = true;
+    private CookieStore cookies;
+
     /**
      * HTTP requests will transparently load a redirects. Note that this means
      * that handlers for events such as Connected may be called more than once -
@@ -148,7 +150,8 @@ public final class HttpClientBuilder {
     public HttpClient build() {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
-                userAgent, interceptors, settings, send100continue);
+                userAgent, interceptors, settings, send100continue,
+                cookies);
     }
 
     /**
@@ -192,6 +195,18 @@ public final class HttpClientBuilder {
             }
         }
         settings.add(new ChannelOptionSetting(option, value));
+        return this;
+    }
+    
+    /**
+     * Set a cookie store which will be used for all HTTP requests on the
+     * resulting HttpClient (unless overriddeen in RequestBuilder).
+     * 
+     * @param store A cookie store
+     * @return this
+     */
+    public HttpClientBuilder setCookieStore(CookieStore store) {
+        this.cookies = store;
         return this;
     }
 

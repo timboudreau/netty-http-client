@@ -68,12 +68,13 @@ public class HttpClientTest {
     public void test() throws Exception {
         if (true) return;
         HttpClient client = HttpClient.builder().build();
+        final CookieStore store = new CookieStore();
 //        ResponseFuture h = client.get().setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://timboudreau.com/files/INTRNET2.TXT")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org/blog/api-list")).execute(new ResponseHandler<String>(String.class) {
 //        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://www.google.com")).execute(new ResponseHandler<String>(String.class){
-        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org/blog/latest/read")).execute(new ResponseHandler<String>(String.class){
+        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("http://hp.timboudreau.org/blog/latest/read")).execute(new ResponseHandler<String>(String.class){
 
             @Override
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
@@ -88,6 +89,7 @@ public class HttpClientTest {
                 for (Map.Entry<String, String> e : object.headers().entries()) {
                     System.out.println(e.getKey() + ": " + e.getValue());
                 }
+                System.out.println("COOKIES: " + store);
             }
         });
 
@@ -104,6 +106,8 @@ public class HttpClientTest {
 //                    for (Map.Entry<String,String> e : ((HttpResponse) state.get()).headers().entries()) {
 //                        System.out.println(e.getKey() + ": " + e.getValue());
 //                    }
+                } else if (state.get() instanceof State.FullContentReceived) {
+                    System.out.println("COOKIES: " + store);
                 }
             }
         });
