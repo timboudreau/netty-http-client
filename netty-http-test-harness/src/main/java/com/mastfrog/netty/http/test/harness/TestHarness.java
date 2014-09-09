@@ -5,13 +5,16 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.google.common.net.MediaType;
+import com.google.inject.Binder;
 import com.google.inject.Inject;
+import com.google.inject.Module;
 import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
+import com.mastfrog.acteur.util.ServerControl;
 import com.mastfrog.giulius.ShutdownHookRegistry;
 import com.mastfrog.netty.http.client.CookieStore;
 import com.mastfrog.netty.http.client.HttpClient;
@@ -55,6 +58,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
 import io.netty.handler.codec.http.Cookie;
+import java.util.Date;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -82,7 +86,25 @@ public class TestHarness implements ErrorInterceptor {
         this.server = server;
         port = settings.getInt("testPort", findPort());
         this.client = client;
-        reg.add(new Shutdown());
+        if (reg != null) {
+            reg.add(new Shutdown());
+        }
+    }
+    
+    /**
+     * Constructor for manual construction
+     * 
+     * @param port The port
+     * @param client An http client
+     */
+    public TestHarness(int port, HttpClient client) {
+        this.server = new Fake(port);
+        this.port = port;
+        this.client = client;
+    }
+    
+    public Server getServer() {
+        return server;
     }
 
     private int findPort() {
@@ -925,6 +947,99 @@ public class TestHarness implements ErrorInterceptor {
         public String toString() {
             return name + " (" + getCount() + ")";
         }
+    }
+    
+    private static class Fake implements Server, ServerControl {
+        private final int port;
+        
+        Fake(int port) {
+            this.port = port;
+        }
 
+        @Override
+        public int getPort() {
+            return port;
+        }
+
+        @Override
+        public ServerControl start() throws IOException {
+            return this;
+        }
+
+        @Override
+        public ServerControl start(int port) throws IOException {
+            return this;
+        }
+
+        @Override
+        public ServerControl start(boolean ssl) throws IOException {
+            return this;
+        }
+
+        @Override
+        public ServerControl start(int port, boolean ssl) throws IOException {
+            return this;
+        }
+
+        @Override
+        public void shutdown(boolean immediately, long timeout, TimeUnit unit) throws InterruptedException {
+            //do nothing
+        }
+
+        @Override
+        public void shutdown(boolean immediately) throws InterruptedException {
+            //do nothing
+        }
+
+        @Override
+        public void await() throws InterruptedException {
+            synchronized(this) {
+                wait();
+            }
+        }
+
+        @Override
+        public void awaitUninterruptibly() {
+            synchronized(this) {
+                for (;;) {
+                    try {
+                        wait();
+                        return;
+                    } catch (InterruptedException ex) {
+                        org.openide.util.Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public long awaitNanos(long l) throws InterruptedException {
+            //do nothing
+            return 0L;
+        }
+
+        @Override
+        public boolean await(long l, TimeUnit tu) throws InterruptedException {
+            return true;
+        }
+
+        @Override
+        public boolean awaitUntil(Date date) throws InterruptedException {
+            return true;
+        }
+
+        @Override
+        public void signal() {
+            synchronized (this) {
+                notifyAll();
+            }
+        }
+
+        @Override
+        public void signalAll() {
+            synchronized (this) {
+                notifyAll();
+            }
+        }
     }
 }
