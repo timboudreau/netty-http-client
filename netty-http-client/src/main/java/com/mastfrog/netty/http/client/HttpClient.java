@@ -49,6 +49,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
+import io.netty.util.IllegalReferenceCountException;
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import java.util.Collections;
@@ -300,7 +301,13 @@ public final class HttpClient {
         HttpRequest nue;
         if (method.toString().equals(info.req.getMethod().toString())) {
             if (info.req instanceof DefaultFullHttpRequest) {
-                FullHttpRequest rq = ((DefaultFullHttpRequest) info.req).copy();
+                DefaultFullHttpRequest dfrq = (DefaultFullHttpRequest) info.req;
+                FullHttpRequest rq;
+                try {
+                    rq = dfrq.copy();
+                } catch (IllegalReferenceCountException e) { // Empty bytebuf
+                    rq = dfrq;
+                }
                 rq.setUri(url.getPathAndQuery());
                 nue = rq;
             } else {
