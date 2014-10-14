@@ -26,7 +26,6 @@ package com.mastfrog.netty.http.client;
 import com.google.common.collect.ImmutableList;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
-import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
@@ -255,6 +254,7 @@ public final class HttpClient {
             bootstrap.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            bootstrap.option(ChannelOption.SO_REUSEADDR, false);
             for (ChannelOptionSetting setting : settings) {
                 option(bootstrap, setting);
             }
@@ -269,6 +269,7 @@ public final class HttpClient {
             bootstrapSsl.group(group);
             bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
+            bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             for (ChannelOptionSetting setting : settings) {
                 option(bootstrapSsl, setting);
