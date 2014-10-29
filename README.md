@@ -15,6 +15,7 @@ Features
 
  * HTTP and HTTPS
  * Simple support for Basic authentication
+ * Optional support for HTTP cookies
  * Easy, typed API for setting headers
  * Fluent builder API for assembling requests
  * Non-blocking, asynchronous
@@ -86,8 +87,6 @@ Status & To-Dos
 This is a young library;  it works, but it will surely need some polish yet;  and Netty 4.x is still
 changing, including occasional incompatible changes.  Here are some things that would be useful to add:
 
- * Support for caching and automatically setting cookies
-   * With offline persistence?
  * Caching on disk or in memory with proper use of ``If-Modified-Since`` and ``If-None-Match`` headers
  * Zero copy file streaming using Netty's FileRegion
  * Real trust/keystores for HTTPS (currently using the dummy keystore implementation from 

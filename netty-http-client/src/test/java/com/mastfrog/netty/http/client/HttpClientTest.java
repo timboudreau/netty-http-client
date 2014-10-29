@@ -23,6 +23,7 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.google.common.collect.Lists;
 import com.google.common.net.MediaType;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
@@ -32,6 +33,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.Test;
@@ -46,6 +48,8 @@ public class HttpClientTest {
     @Test
     public void testPost() throws Exception {
         HttpClient client = HttpClient.builder().followRedirects().build();
+        final AM am = new AM();
+        client.addActivityMonitor(am);
         ResponseFuture f = client.get()
                 .setURL("http://localhost:9333/foo/bar")
                 .setBody("This is a test", MediaType.PLAIN_TEXT_UTF_8)
@@ -58,10 +62,30 @@ public class HttpClientTest {
                     for (Map.Entry<String,String> e : d.headers().entries()) {
                         System.out.println(e.getKey() + ": " + e.getValue());
                     }
+                    assertTrue(am.started.contains("http://localhost:9333/foo/bar"));
+                    assertTrue(am.ended.contains("http://localhost:9333/foo/bar"));
                 }
             }
         }).execute();
         f.await(5, TimeUnit.SECONDS);
+    }
+    
+    private static class AM implements ActivityMonitor {
+        final List<String> started = Lists.newCopyOnWriteArrayList();
+        final List<String> ended = Lists.newCopyOnWriteArrayList();
+
+        @Override
+        public void onStartRequest(URL url) {
+            System.out.println("AM START: " + url);
+            started.add(url.toString());
+        }
+
+        @Override
+        public void onEndRequest(URL url) {
+            System.out.println("AM END: " + url);
+            ended.add(url.toString());
+        }
+        
     }
 
     @Test

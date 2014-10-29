@@ -24,6 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.url.URL;
@@ -54,6 +55,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -326,6 +328,33 @@ public final class HttpClient {
 
     static final AttributeKey<RequestInfo> KEY = AttributeKey.<RequestInfo>valueOf("info");
 
+    private final Set<ActivityMonitor> monitors = Sets.newConcurrentHashSet();
+    
+    public void addActivityMonitor(ActivityMonitor monitor) {
+        monitors.add(monitor);
+    }
+    
+    public void removeActivityMonitor(ActivityMonitor monitor) {
+        monitors.remove(monitor);
+    }
+
+    private class AdapterCloseNotifier implements ChannelFutureListener {
+
+        private final URL url;
+
+        public AdapterCloseNotifier(URL url) {
+            this.url = url;
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture future) throws Exception {
+            for (ActivityMonitor m : monitors) {
+                m.onEndRequest(url);
+            }
+        }
+
+    }
+
     private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info) {
         if (cancelled.get()) {
             handle.event(new State.Cancelled());
@@ -352,6 +381,13 @@ public final class HttpClient {
             //XXX who is escaping this?
             req.setUri(req.getUri().replaceAll("%5f", "_"));
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
+            if (!monitors.isEmpty()) {
+                for (ActivityMonitor m : monitors) {
+                    m.onStartRequest(url);
+                }
+                fut.channel().closeFuture().addListener(new AdapterCloseNotifier(url));
+            }
+
             handle.setFuture(fut);
             fut.channel().attr(KEY).set(info);
             fut.addListener(new ChannelFutureListener() {
