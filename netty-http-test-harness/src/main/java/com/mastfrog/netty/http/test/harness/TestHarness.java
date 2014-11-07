@@ -167,7 +167,7 @@ public class TestHarness implements ErrorInterceptor {
             client.shutdown();
             try {
                 if (serverStart != null) {
-                    serverStart.signalAll();
+                    serverStart.shutdown(true);
                 }
             } catch (Exception ex) {
                 Exceptions.printStackTrace(ex);
@@ -203,14 +203,14 @@ public class TestHarness implements ErrorInterceptor {
         return request(Method.TRACE, pathElements);
     }
     
-    private Condition serverStart;
+    private volatile ServerControl serverStart;
 
     public TestRequestBuilder request(Method m, String... pathElements) {
         if (serverStart == null) {
             synchronized (this) {
                 if (serverStart == null) {
                     try {
-                        serverStart = server.start();
+                        serverStart = server.start(port);
                     } catch (IOException ex) {
                         Exceptions.chuck(ex);
                     }
