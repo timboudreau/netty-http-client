@@ -119,7 +119,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                 if (fut != null) {
                     fut.cancel(true);
                 }
-                if (fut.channel() != null && fut.channel().isOpen()) {
+                if (fut != null && fut.channel() != null && fut.channel().isOpen()) {
                     fut.channel().close();
                 }
             } finally {

@@ -32,7 +32,6 @@ import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.url.URLBuilder;
-import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
@@ -50,7 +49,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import javax.imageio.ImageIO;
 import org.joda.time.DateTime;
 
@@ -275,7 +273,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             }
         }
         if (h == null) {
-            h = new HandlerEntry<T>((Class<State<T>>) event);
+            h = new HandlerEntry<>(event);
             handlers.add(h);
         }
         h.add(r);
