@@ -153,37 +153,38 @@ public final class HttpClient {
     private final Duration timeout;
     private final SSLContext sslContext;
     private final TrustManager[] managers;
+    private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
 
     public HttpClient() {
         this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null, null, null);
     }
 
     /**
-     * Create a new HTTP client; prefer HttpClient.builder() where possible,
-     * as that is much simpler.  HttpClientBuilder will remain backward 
-     * compatible;  this constructor may be changed if new parameters are
-     * needed (all state of an HTTP client is immutable and must be passed
-     * to the constructor).
-     * 
+     * Create a new HTTP client; prefer HttpClient.builder() where possible, as
+     * that is much simpler. HttpClientBuilder will remain backward compatible;
+     * this constructor may be changed if new parameters are needed (all state
+     * of an HTTP client is immutable and must be passed to the constructor).
+     *
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
      * @param threads Number of threads to dedicate to network I/O
-     * @param maxInitialLineLength Maximum length the initial line (method + url)
-     * will have
+     * @param maxInitialLineLength Maximum length the initial line (method +
+     * url) will have
      * @param maxHeadersSize Maximum buffer size for HTTP headers
-     * @param followRedirects If true, client will transparently follow redirects
+     * @param followRedirects If true, client will transparently follow
+     * redirects
      * @param userAgent The user agent string - may be null
      * @param interceptors A list of interceptors which can decorate all http
      * requests created by this client. May be null.
-     * @param settings Netty channel options for 
+     * @param settings Netty channel options for
      * @param send100continue If true, requests with payloads will have the
      * Expect: 100-CONTINUE header set
-     * @param cookies A place to store http cookies, which will be re-sent
-     * where appropriate;  may be null.
-     * @param timeout Maximum time a connection will be open;  may be null to
+     * @param cookies A place to store http cookies, which will be re-sent where
+     * appropriate; may be null.
+     * @param timeout Maximum time a connection will be open; may be null to
      * keep open indefinitely.
-     * @param sslContext Ssl context for secure connections.  May be null.
-     * @param managers Trust managers for secure connections.  May be empty for
+     * @param sslContext Ssl context for secure connections. May be null.
+     * @param managers Trust managers for secure connections. May be empty for
      * default trust manager.
      */
     public HttpClient(boolean compress, int maxChunkSize, int threads,
@@ -198,8 +199,8 @@ public final class HttpClient {
         this.maxHeadersSize = maxHeadersSize;
         this.followRedirects = followRedirects;
         this.userAgent = userAgent;
-        this.interceptors = interceptors == null ? Collections.emptyList() :
-                new ImmutableList.Builder<RequestInterceptor>()
+        this.interceptors = interceptors == null ? Collections.emptyList()
+                : new ImmutableList.Builder<RequestInterceptor>()
                 .addAll(interceptors).build();
         this.settings = settings == null ? Collections.emptySet() : settings;
         this.send100continue = send100continue;
@@ -246,8 +247,8 @@ public final class HttpClient {
     }
 
     /**
-     * Build an HTTP HEAD request
-     *Spi
+     * Build an HTTP HEAD request Spi
+     *
      * @return a request builder
      */
     public HttpRequestBuilder head() {
@@ -407,6 +408,35 @@ public final class HttpClient {
         }
     }
 
+    static final class TimeoutTimerTask extends TimerTask {
+
+        private final AtomicBoolean cancelled;
+        private final ResponseFuture handle;
+        private final ResponseHandler<?> r;
+        private final RequestInfo in;
+
+        public TimeoutTimerTask(AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, RequestInfo in) {
+            Checks.notNull("in", in);
+            Checks.notNull("cancelled", cancelled);
+            this.cancelled = cancelled;
+            this.handle = handle;
+            this.r = r;
+            this.in = in;
+        }
+
+        @Override
+        public void run() {
+            if (!cancelled.get()) {
+                if (handle != null) {
+                    handle.onTimeout(in.age());
+                }
+                if (r != null) {
+                    r.onError(new TimeoutException(in.timeout.toString()));
+                }
+            }
+        }
+    }
+
     private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info, Duration timeout) {
         if (info != null && info.isExpired()) {
             cancelled.set(true);
@@ -430,24 +460,16 @@ public final class HttpClient {
                 throw new IllegalArgumentException(url.getProblems() + "");
             }
             if (info == null) {
-                Timer timer = null;
+                TimerTask tt = null;
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, tt);
                 if (timeout != null) {
-                    timer = new Timer("HttpClient timeout for " + url);
-                    TimerTask tt = new TimerTask() {
-
-                        @Override
-                        public void run() {
-                            if (!cancelled.get()) {
-                                handle.onTimeout();
-                                if (r != null) {
-                                    r.onError(new TimeoutException(timeout.toString()));
-                                }
-                            }
-                        }
-                    };
+                    tt = new TimeoutTimerTask(cancelled, handle, r, info);
                     timer.schedule(tt, timeout.getMillis());
                 }
-                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timer);
+            }
+            if (info.isExpired()) {
+                handle.event(new State.Timeout(info.age()));
+                return;
             }
             handle.event(new State.Connecting());
             //XXX who is escaping this?

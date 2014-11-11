@@ -23,6 +23,7 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.concurrent.CountDownLatch;
@@ -41,10 +42,16 @@ public class ConnectionRefusedTest {
     @Test
     public void testTimeout() throws Throwable {
         final CountDownLatch latch = new CountDownLatch(1);
-        HttpClient client = HttpClient.builder().build();
+        HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
         client.get().setTimeout(new Duration(2)).setURL("http://10.0.0.0/abcd")
-                .execute(new ResponseHandler<Object>(Object.class) {
+                .onEvent(new Receiver<State<?>>() {
+
+                    @Override
+                    public void receive(State<?> object) {
+                        System.out.println("1STATE " + object);
+                    }
+                }).execute(new ResponseHandler<Object>(Object.class) {
 
                     @Override
                     protected void receive(Object obj) {
@@ -69,9 +76,16 @@ public class ConnectionRefusedTest {
     @Test
     public void test() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        HttpClient client = HttpClient.builder().build();
+        HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
         client.get().setURL("http://10.0.0.0/abcd")
+                .onEvent(new Receiver<State<?>>() {
+
+                    @Override
+                    public void receive(State<?> object) {
+                        System.out.println("2STATE " + object);
+                    }
+                })
                 .execute(new ResponseHandler<Object>(Object.class) {
 
                     @Override

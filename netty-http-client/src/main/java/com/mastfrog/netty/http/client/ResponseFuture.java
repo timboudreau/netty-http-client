@@ -30,10 +30,10 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 
 /**
  * Returned from launching an HTTP request; attach handlers using the
@@ -105,9 +105,9 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return this;
     }
 
-    void onTimeout() {
+    void onTimeout(Duration dur) {
         System.out.println("onTimeout");
-        cancel();
+        cancel(dur);
     }
     
     /**
@@ -117,8 +117,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
      * @return true if it succeeded, false if it was already canceled
      */
     public boolean cancel() {
+        return cancel(null);
+    }
+    
+    boolean cancel(Duration forTimeout) {
         boolean result = cancelled.compareAndSet(false, true);
-        System.out.println("Cancel result " + result);
         if (result) {
             try {
                 ChannelFuture fut = future;
@@ -129,8 +132,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                     fut.channel().close();
                 }
             } finally {
-                System.out.println("Event cancel");
-                event(new State.Cancelled());
+                if (forTimeout != null) {
+                    event(new State.Timeout(forTimeout));
+                } else {
+                    event(new State.Cancelled());
+                }
             }
             latch.countDown();
         }
@@ -161,7 +167,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         Checks.notNull("state", state);
         lastState.set(state.stateType());
         try {
-            if (state instanceof State.Error && cancelled.get()) {
+            if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
 //                System.err.println("Suppressing error after cancel");
                 return;
             }

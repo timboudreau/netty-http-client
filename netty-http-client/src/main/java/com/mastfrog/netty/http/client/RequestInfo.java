@@ -26,6 +26,7 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.url.URL;
 import io.netty.handler.codec.http.HttpRequest;
 import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.joda.time.DateTime;
@@ -46,9 +47,9 @@ final class RequestInfo {
     final Duration timeout;
     final DateTime startTime;
     volatile boolean listenerAdded;
-    final Timer timer;
+    final TimerTask timer;
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, Timer timer) {
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, TimerTask timer) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
@@ -59,8 +60,12 @@ final class RequestInfo {
         this.timer = timer;
     }
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, Timer timer) {
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer) {
         this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer);
+    }
+    
+    Duration age() {
+        return new Duration(startTime, DateTime.now());
     }
 
     boolean isExpired() {

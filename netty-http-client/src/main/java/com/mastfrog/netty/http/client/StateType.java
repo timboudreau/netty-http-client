@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import java.lang.reflect.Method;
+import org.joda.time.Duration;
 
 /**
  * Enumeration of states a request can be in.
@@ -42,11 +43,11 @@ public enum StateType {
     /**
      * A connection has not been made yet.
      */
-    Connecting, 
+    Connecting,
     /**
      * A connection has been made.
      */
-    Connected, 
+    Connected,
     /**
      * About to send a request
      */
@@ -54,48 +55,76 @@ public enum StateType {
     /**
      * The request has been sent.
      */
-    AwaitingResponse, 
+    AwaitingResponse,
     /**
-     * The response headers have been received, but the response body has not yet
-     * (or there will not be one).
+     * The response headers have been received, but the response body has not
+     * yet (or there will not be one).
      */
-    HeadersReceived, 
+    HeadersReceived,
     /**
      * One chunk of content has been received - not necessarily the entire
      * response, but some content.
      */
-    ContentReceived, 
+    ContentReceived,
     /**
      * The response was a 300-307 HTTP redirect and the redirect is being
-     * followed. Note this event will only be seen if the HttpClient 
-     * is set to follow redirects - otherwise, you will just see the 
-     * redirect headers and body.
+     * followed. Note this event will only be seen if the HttpClient is set to
+     * follow redirects - otherwise, you will just see the redirect headers and
+     * body.
      */
-    Redirect, 
+    Redirect,
     /**
      * The entire content of the response has arrived.
      */
-    FullContentReceived, 
+    FullContentReceived,
     /**
      * The connection was closed.
      */
-    Closed, 
+    Closed,
     /**
      * Similar to FullContentReceived, this event gives you a Netty
      * FullHttpRequest with the entire response.
      */
-    Finished, 
+    Finished,
     /**
-     * An exception was thrown
+     * An exception was thrown.
      */
-    Error, 
+    Error,
     /**
-     * The call was cancelled;  useful for cleaning up resources.
+     * Called when a timeout occurs.
+     */
+    Timeout,
+    /**
+     * The call was cancelled; useful for cleaning up resources.
      */
     Cancelled;
 
     Receiver<?> wrapperReceiver(Receiver<?> orig) {
         return wrapperReceiver(stateValueType(), orig);
+    }
+
+    public boolean isResponseComplete() {
+        switch (this) {
+            case AwaitingResponse:
+            case Connected:
+            case Connecting:
+            case ContentReceived:
+            case HeadersReceived:
+            case SendRequest:
+                return false;
+        }
+        return true;
+    }
+
+    public boolean isFailure() {
+        switch (this) {
+            case Cancelled:
+            case Closed:
+            case Error:
+            case Timeout:
+                return true;
+        }
+        return false;
     }
 
     private <T> Receiver<T> wrapperReceiver(final Class<T> type, final Receiver<?> orig) {
@@ -117,7 +146,7 @@ public enum StateType {
                             }
                         }
                     }
-                    System.err.println("Receiver for " 
+                    System.err.println("Receiver for "
                             + type.getName() + " takes the "
                             + "wrong class " + typeName + " in its receive() "
                             + "method. Expected " + type + ". Passing null "
@@ -130,6 +159,7 @@ public enum StateType {
 
     /**
      * Get the type of the State object tied to this event
+     *
      * @return a type
      */
     public Class<?> stateValueType() {
@@ -138,7 +168,7 @@ public enum StateType {
                 return Void.class;
             case Connected:
                 return Channel.class;
-            case SendRequest :
+            case SendRequest:
                 return HttpRequest.class;
             case AwaitingResponse:
                 return Void.class;
@@ -158,6 +188,8 @@ public enum StateType {
                 return Throwable.class;
             case Cancelled:
                 return Boolean.class;
+            case Timeout:
+                return Duration.class;
             default:
                 throw new AssertionError(this);
         }
@@ -165,6 +197,7 @@ public enum StateType {
 
     /**
      * Get the type of the data payload of this event
+     *
      * @return a type
      */
     public Class<? extends State<?>> type() {
@@ -173,7 +206,7 @@ public enum StateType {
                 return State.Connecting.class;
             case Connected:
                 return State.Connected.class;
-            case SendRequest :
+            case SendRequest:
                 return State.SendRequest.class;
             case AwaitingResponse:
                 return State.AwaitingResponse.class;
@@ -193,9 +226,11 @@ public enum StateType {
                 return State.Error.class;
             case Cancelled:
                 return State.Cancelled.class;
+            case Timeout:
+                return State.Timeout.class;
             default:
                 throw new AssertionError(this);
         }
     }
-    
+
 }

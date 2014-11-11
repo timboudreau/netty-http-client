@@ -29,8 +29,6 @@ import com.mastfrog.url.URL;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -207,7 +205,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             }
             if (last) {
                 c.content().resetReaderIndex();
-                info.handle.event(new State.FullContentReceived(state.content));
                 sendFullResponse(ctx);
             }
         }
