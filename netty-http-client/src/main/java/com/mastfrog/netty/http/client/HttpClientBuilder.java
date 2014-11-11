@@ -149,7 +149,7 @@ public final class HttpClientBuilder {
      * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be
      * sending extremely long URLs, the default of 2048 should be plenty.
      * @param max
-     * @return
+     * @return this
      */
     public HttpClientBuilder maxInitialLineLength(int max) {
         maxInitialLineLength = max;
@@ -196,7 +196,7 @@ public final class HttpClientBuilder {
     /**
      * Set the user agent
      * @param userAgent
-     * @return
+     * @return this
      */
     public HttpClientBuilder setUserAgent(String userAgent) {
         this.userAgent = userAgent;

@@ -160,7 +160,10 @@ public final class HttpClient {
 
     /**
      * Create a new HTTP client; prefer HttpClient.builder() where possible,
-     * as that is much simpler.
+     * as that is much simpler.  HttpClientBuilder will remain backward 
+     * compatible;  this constructor may be changed if new parameters are
+     * needed (all state of an HTTP client is immutable and must be passed
+     * to the constructor).
      * 
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
