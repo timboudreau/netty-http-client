@@ -33,21 +33,27 @@ import io.netty.handler.ssl.SslHandler;
 import java.security.SecureRandom;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactorySpi;
 
 /**
  *
  * @author tim
  */
-class Initializer extends ChannelInitializer<Channel> {
+final class Initializer extends ChannelInitializer<Channel> {
 
     private final ChannelInboundHandlerAdapter handler;
+    private final SSLContext context;
+    private final TrivialTrustManagerFactory trustManagers;
     private final boolean ssl;
     private final int maxChunkSize;
     private final int maxInitialLineLength;
     private final boolean compress;
 
-    public Initializer(ChannelInboundHandlerAdapter handler, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
+    public Initializer(ChannelInboundHandlerAdapter handler, SSLContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, TrustManager... managers) {
         this.handler = handler;
+        this.context = context == null ? SecureChatSslContextFactory.getClientContext() : context;
+        this.trustManagers = new TrivialTrustManagerFactory(managers);
         this.ssl = ssl;
         this.maxChunkSize = maxChunkSize;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -59,9 +65,8 @@ class Initializer extends ChannelInitializer<Channel> {
         ChannelPipeline pipeline = ch.pipeline();
         if (ssl) {
             SSLContext clientContext = SSLContext.getInstance("TLS");
-            clientContext.init(null, TrivialTrustManagerFactory.getTrustManagers(), new SecureRandom());
-            SSLEngine engine =
-                    SecureChatSslContextFactory.getClientContext().createSSLEngine();
+            clientContext.init(null, trustManagers.engineGetTrustManagers(), new SecureRandom());
+            SSLEngine engine = context.createSSLEngine();
 
             engine.setUseClientMode(true);
             pipeline.addLast("ssl", new SslHandler(engine));

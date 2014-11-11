@@ -65,6 +65,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -149,16 +151,43 @@ public final class HttpClient {
     private final boolean send100continue;
     private final CookieStore cookies;
     private final Duration timeout;
+    private final SSLContext sslContext;
+    private final TrustManager[] managers;
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null, null, null);
     }
 
+    /**
+     * Create a new HTTP client; prefer HttpClient.builder() where possible,
+     * as that is much simpler.
+     * 
+     * @param compress Enable http compression
+     * @param maxChunkSize Max buffer size for chunked encoding
+     * @param threads Number of threads to dedicate to network I/O
+     * @param maxInitialLineLength Maximum length the initial line (method + url)
+     * will have
+     * @param maxHeadersSize Maximum buffer size for HTTP headers
+     * @param followRedirects If true, client will transparently follow redirects
+     * @param userAgent The user agent string - may be null
+     * @param interceptors A list of interceptors which can decorate all http
+     * requests created by this client. May be null.
+     * @param settings Netty channel options for 
+     * @param send100continue If true, requests with payloads will have the
+     * Expect: 100-CONTINUE header set
+     * @param cookies A place to store http cookies, which will be re-sent
+     * where appropriate;  may be null.
+     * @param timeout Maximum time a connection will be open;  may be null to
+     * keep open indefinitely.
+     * @param sslContext Ssl context for secure connections.  May be null.
+     * @param managers Trust managers for secure connections.  May be empty for
+     * default trust manager.
+     */
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout) {
+            CookieStore cookies, Duration timeout, SSLContext sslContext, TrustManager... managers) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -166,12 +195,16 @@ public final class HttpClient {
         this.maxHeadersSize = maxHeadersSize;
         this.followRedirects = followRedirects;
         this.userAgent = userAgent;
-        this.interceptors = new ImmutableList.Builder<RequestInterceptor>()
+        this.interceptors = interceptors == null ? Collections.emptyList() :
+                new ImmutableList.Builder<RequestInterceptor>()
                 .addAll(interceptors).build();
-        this.settings = settings;
+        this.settings = settings == null ? Collections.emptySet() : settings;
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
+        this.sslContext = sslContext;
+        this.managers = new TrustManager[managers.length];
+        System.arraycopy(managers, 0, this.managers, 0, managers.length);
     }
 
     private static class TF implements ThreadFactory {
@@ -211,7 +244,7 @@ public final class HttpClient {
 
     /**
      * Build an HTTP HEAD request
-     *
+     *Spi
      * @return a request builder
      */
     public HttpRequestBuilder head() {
@@ -262,7 +295,9 @@ public final class HttpClient {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
             bootstrap.group(group);
-            bootstrap.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
+            bootstrap.handler(new Initializer(
+                    new MessageHandlerImpl(followRedirects, this), sslContext, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
+            );
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             bootstrap.option(ChannelOption.SO_REUSEADDR, false);
@@ -281,7 +316,7 @@ public final class HttpClient {
         if (bootstrapSsl == null) {
             bootstrapSsl = new Bootstrap();
             bootstrapSsl.group(group);
-            bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
+            bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress, managers));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);

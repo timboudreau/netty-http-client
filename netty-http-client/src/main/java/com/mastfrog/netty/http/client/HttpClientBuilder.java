@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -28,6 +28,8 @@ import io.netty.channel.ChannelOption;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -48,10 +50,22 @@ public final class HttpClientBuilder {
     private boolean send100continue = true;
     private CookieStore cookies;
     private Duration timeout;
-    
+    private final List<TrustManager> managers = new LinkedList<>();
+    private SSLContext sslContext;
+
+    public HttpClientBuilder setSslContext(SSLContext ctx) {
+        this.sslContext = ctx;
+        return this;
+    }
+
+    public HttpClientBuilder addTrustManager(TrustManager mgr) {
+        this.managers.add(mgr);
+        return this;
+    }
+
     /**
      * Set the timeout for requests.  Note that this timeout
-     * is independent of the timeout that can be set individually on 
+     * is independent of the timeout that can be set individually on
      * requests, but whichever timeout is shorter will take precedence.
      * The default is no timeout.
      * @param timeout The timeout
@@ -73,10 +87,10 @@ public final class HttpClientBuilder {
         followRedirects = true;
         return this;
     }
-    
+
     /**
      * Http requests will where appropriate set the Expect: 100-CONTINUE header
-     * 
+     *
      * @return this
      */
     public HttpClientBuilder send100Continue() {
@@ -86,14 +100,14 @@ public final class HttpClientBuilder {
 
     /**
      * Turn off the default behavior of setting the Expect: 100-CONTINUE header
-     * when 
-     * @return 
+     * when
+     * @return
      */
     public HttpClientBuilder dontSend100Continue() {
         send100continue = false;
         return this;
     }
-    
+
     /**
      * Turn off following of redirects
      * @return this
@@ -109,7 +123,7 @@ public final class HttpClientBuilder {
      * have simultaneous requests;  the default is 4.  Best to see if you
      * have problems, and increase this value only if it makes a measurable
      * improvement in throughput.
-     * 
+     *
      * @param count The number of threads
      * @return this
      */
@@ -135,7 +149,7 @@ public final class HttpClientBuilder {
      * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be
      * sending extremely long URLs, the default of 2048 should be plenty.
      * @param max
-     * @return 
+     * @return
      */
     public HttpClientBuilder maxInitialLineLength(int max) {
         maxInitialLineLength = max;
@@ -176,13 +190,13 @@ public final class HttpClientBuilder {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, settings, send100continue,
-                cookies, timeout);
+                cookies, timeout, sslContext, managers.toArray(new TrustManager[0]));
     }
 
     /**
      * Set the user agent
      * @param userAgent
-     * @return 
+     * @return
      */
     public HttpClientBuilder setUserAgent(String userAgent) {
         this.userAgent = userAgent;
@@ -203,10 +217,10 @@ public final class HttpClientBuilder {
     private final List<ChannelOptionSetting> settings = new LinkedList<>();
 
     /**
-     * Set a low-level setting for the Netty pipeline.  See the 
+     * Set a low-level setting for the Netty pipeline.  See the
      * <a href="http://netty.io/4.0/api/io/netty/channel/ChannelOption.html">Netty documentation</a>
      * for what these are.
-     * 
+     *
      * @param <T> The type
      * @param option The option
      * @param value The value type
@@ -222,11 +236,11 @@ public final class HttpClientBuilder {
         settings.add(new ChannelOptionSetting(option, value));
         return this;
     }
-    
+
     /**
      * Set a cookie store which will be used for all HTTP requests on the
      * resulting HttpClient (unless overriddeen in RequestBuilder).
-     * 
+     *
      * @param store A cookie store
      * @return this
      */
@@ -238,9 +252,9 @@ public final class HttpClientBuilder {
     /**
      * Encapsulates a setting that can be set on the Netty Bootstrap;  not
      * really an API class, but exposed so that the HttpClient constructor
-     * can be invoked directly if someone wants to (using 
+     * can be invoked directly if someone wants to (using
      * <a href="HttpClientBuilder.html">HttpClientBuilder</a> is much easier).
-     * 
+     *
      * @param <T> A type
      */
     protected static class ChannelOptionSetting<T> {
