@@ -50,15 +50,22 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.joda.time.Duration;
 
 /**
  * A simple asynchronous HTTP client with an emphasis on ease of use and a
@@ -141,16 +148,17 @@ public final class HttpClient {
     private final Iterable<ChannelOptionSetting> settings;
     private final boolean send100continue;
     private final CookieStore cookies;
+    private final Duration timeout;
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null, null);
     }
 
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting> settings, boolean send100continue,
-            CookieStore cookies) {
+            CookieStore cookies, Duration timeout) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -163,6 +171,7 @@ public final class HttpClient {
         this.settings = settings;
         this.send100continue = send100continue;
         this.cookies = cookies;
+        this.timeout = timeout;
     }
 
     private static class TF implements ThreadFactory {
@@ -257,6 +266,9 @@ public final class HttpClient {
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             bootstrap.option(ChannelOption.SO_REUSEADDR, false);
+            if (timeout != null) {
+                bootstrap.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
+            }
             for (ChannelOptionSetting setting : settings) {
                 option(bootstrap, setting);
             }
@@ -273,6 +285,9 @@ public final class HttpClient {
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            if (timeout != null) {
+                bootstrapSsl.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
+            }
             for (ChannelOptionSetting setting : settings) {
                 option(bootstrapSsl, setting);
             }
@@ -320,7 +335,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
-        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info);
+        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout);
     }
 
     private Bootstrap bootstrap;
@@ -329,11 +344,11 @@ public final class HttpClient {
     static final AttributeKey<RequestInfo> KEY = AttributeKey.<RequestInfo>valueOf("info");
 
     private final Set<ActivityMonitor> monitors = Sets.newConcurrentHashSet();
-    
+
     public void addActivityMonitor(ActivityMonitor monitor) {
         monitors.add(monitor);
     }
-    
+
     public void removeActivityMonitor(ActivityMonitor monitor) {
         monitors.remove(monitor);
     }
@@ -352,10 +367,12 @@ public final class HttpClient {
                 m.onEndRequest(url);
             }
         }
-
     }
 
-    private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info) {
+    private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info, Duration timeout) {
+        if (info != null && info.isExpired()) {
+            cancelled.set(true);
+        }
         if (cancelled.get()) {
             handle.event(new State.Cancelled());
             return;
@@ -375,12 +392,31 @@ public final class HttpClient {
                 throw new IllegalArgumentException(url.getProblems() + "");
             }
             if (info == null) {
-                info = new RequestInfo(url, req, cancelled, handle, r);
+                Timer timer = null;
+                if (timeout != null) {
+                    timer = new Timer("HttpClient timeout for " + url);
+                    TimerTask tt = new TimerTask() {
+
+                        @Override
+                        public void run() {
+                            if (!cancelled.get()) {
+                                handle.onTimeout();
+                                if (r != null) {
+                                    r.onError(new TimeoutException(timeout.toString()));
+                                }
+                            }
+                        }
+                    };
+                    timer.schedule(tt, timeout.getMillis());
+                }
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timer);
             }
             handle.event(new State.Connecting());
             //XXX who is escaping this?
             req.setUri(req.getUri().replaceAll("%5f", "_"));
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
+            fut.channel().attr(KEY).set(info);
+            handle.setFuture(fut);
             if (!monitors.isEmpty()) {
                 for (ActivityMonitor m : monitors) {
                     m.onStartRequest(url);
@@ -388,15 +424,30 @@ public final class HttpClient {
                 fut.channel().closeFuture().addListener(new AdapterCloseNotifier(url));
             }
 
-            handle.setFuture(fut);
-            fut.channel().attr(KEY).set(info);
             fut.addListener(new ChannelFutureListener() {
 
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
+                    if (!future.isSuccess()) {
+                        Throwable cause = future.cause();
+                        if (cause == null) {
+                            cause = new ConnectException(url.getHost().toString());
+                        }
+                        handle.event(new State.Error(cause));
+                        if (r != null) {
+                            r.onError(cause);
+                        }
+                        cancelled.set(true);
+                    }
                     if (cancelled.get()) {
                         future.cancel(true);
-                        future.channel().close();
+                        if (future.channel().isOpen()) {
+                            future.channel().close();
+                        }
+                        for (ActivityMonitor m : monitors) {
+                            m.onEndRequest(url);
+                        }
+                        return;
                     }
                     handle.event(new State.Connected(future.channel()));
                     handle.event(new State.SendRequest(req));
@@ -480,8 +531,7 @@ public final class HttpClient {
                         = createHandler(State.HeadersReceived.class, new StoreHandler(theStore));
                 handle.handlers.add(entry);
             }
-
-            submit(u, req, cancelled, handle, r, null);
+            submit(u, req, cancelled, handle, r, null, this.timeout);
             return handle;
         }
 

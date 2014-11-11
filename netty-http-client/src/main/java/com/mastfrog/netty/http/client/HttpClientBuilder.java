@@ -28,6 +28,7 @@ import io.netty.channel.ChannelOption;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import org.joda.time.Duration;
 
 /**
  * Builds an HTTP client
@@ -46,11 +47,25 @@ public final class HttpClientBuilder {
     private final List<RequestInterceptor> interceptors = new LinkedList<>();
     private boolean send100continue = true;
     private CookieStore cookies;
+    private Duration timeout;
+    
+    /**
+     * Set the timeout for requests.  Note that this timeout
+     * is independent of the timeout that can be set individually on 
+     * requests, but whichever timeout is shorter will take precedence.
+     * The default is no timeout.
+     * @param timeout The timeout
+     * @return This
+     */
+    public HttpClientBuilder setTimeout(Duration timeout) {
+        this.timeout = timeout;
+        return this;
+    }
 
     /**
      * HTTP requests will transparently load a redirects. Note that this means
      * that handlers for events such as Connected may be called more than once -
-     * once for each request
+     * once for each request.  Following redirects is the default behavior.
      *
      * @return
      */
@@ -59,11 +74,21 @@ public final class HttpClientBuilder {
         return this;
     }
     
+    /**
+     * Http requests will where appropriate set the Expect: 100-CONTINUE header
+     * 
+     * @return this
+     */
     public HttpClientBuilder send100Continue() {
         send100continue = true;
         return this;
     }
 
+    /**
+     * Turn off the default behavior of setting the Expect: 100-CONTINUE header
+     * when 
+     * @return 
+     */
     public HttpClientBuilder dontSend100Continue() {
         send100continue = false;
         return this;
@@ -151,7 +176,7 @@ public final class HttpClientBuilder {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, settings, send100continue,
-                cookies);
+                cookies, timeout);
     }
 
     /**

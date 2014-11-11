@@ -51,6 +51,7 @@ import java.util.LinkedList;
 import java.util.List;
 import javax.imageio.ImageIO;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 
 /**
  *
@@ -63,9 +64,19 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     private final Method method;
     private HttpVersion version = HttpVersion.HTTP_1_1;
     protected CookieStore store;
+    Duration timeout;
 
     RequestBuilder(Method method) {
         this.method = method;
+    }
+
+    @Override
+    public HttpRequestBuilder setTimeout(Duration timeout) {
+        if (timeout != null && timeout.getMillis() == 0) {
+            throw new IllegalArgumentException("Cannot set timeout to 0");
+        }
+        this.timeout = timeout;
+        return this;
     }
 
     @Override

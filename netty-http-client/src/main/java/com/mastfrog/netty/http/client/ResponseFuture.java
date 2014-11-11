@@ -26,11 +26,11 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.joda.time.DateTime;
@@ -105,6 +105,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return this;
     }
 
+    void onTimeout() {
+        System.out.println("onTimeout");
+        cancel();
+    }
+    
     /**
      * Cancel the associated request. This will make a best-effort, but cannot
      * guarantee, that no state changes will be fired after the final Cancelled.
@@ -113,6 +118,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
      */
     public boolean cancel() {
         boolean result = cancelled.compareAndSet(false, true);
+        System.out.println("Cancel result " + result);
         if (result) {
             try {
                 ChannelFuture fut = future;
@@ -123,6 +129,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                     fut.channel().close();
                 }
             } finally {
+                System.out.println("Event cancel");
                 event(new State.Cancelled());
             }
             latch.countDown();

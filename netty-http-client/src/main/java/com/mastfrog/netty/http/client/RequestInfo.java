@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -25,32 +25,60 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.url.URL;
 import io.netty.handler.codec.http.HttpRequest;
+import java.util.Timer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.joda.time.DateTime;
+import org.joda.time.Duration;
 
 /**
  *
  * @author Tim Boudreau
  */
 final class RequestInfo {
+
     final URL url;
     final HttpRequest req;
     final AtomicBoolean cancelled;
     final ResponseFuture handle;
     final ResponseHandler<?> r;
     final AtomicInteger redirectCount = new AtomicInteger();
+    final Duration timeout;
+    final DateTime startTime;
     volatile boolean listenerAdded;
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r) {
+    final Timer timer;
+
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, Timer timer) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
         this.handle = handle;
         this.r = r;
+        this.timeout = timeout;
+        this.startTime = startTime;
+        this.timer = timer;
+    }
+
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, Timer timer) {
+        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer);
+    }
+
+    boolean isExpired() {
+        if (timeout != null) {
+            return DateTime.now().isAfter(startTime.plus(timeout));
+        }
+        return false;
     }
     
+    void cancelTimer() {
+        if (timer != null) {
+            timer.cancel();
+        }
+    }
+
     @Override
     public String toString() {
-        return "RequestInfo{" + "url=" + url + ", req=" + req + ", cancelled=" 
-                + cancelled + ", handle=" + handle + ", r=" + r + '}';
+        return "RequestInfo{" + "url=" + url + ", req=" + req + ", cancelled="
+                + cancelled + ", handle=" + handle + ", r=" + r + ", timeout=" + timeout + '}';
     }
 }

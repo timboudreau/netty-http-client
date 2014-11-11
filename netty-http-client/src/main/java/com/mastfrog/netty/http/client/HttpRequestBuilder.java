@@ -29,6 +29,7 @@ import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
 import java.io.IOException;
+import org.joda.time.Duration;
 
 /**
  * Builds an HTTP request, allows for adding listeners for response events, and
@@ -242,4 +243,6 @@ public interface HttpRequestBuilder {
      * @return this
      */
     HttpRequestBuilder setCookieStore(CookieStore store);
+    
+    HttpRequestBuilder setTimeout(Duration timeout);
 }

@@ -178,7 +178,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     info.handle.event(new State.Redirect(URL.parse(redirUrl)));
                     info.handle.cancelled = new AtomicBoolean();
@@ -234,6 +234,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         Class<? extends State<?>> type = State.Finished.class;
         state.content.resetReaderIndex();
+        if (info != null) {
+            info.cancelTimer();
+        }
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.content.readableBytes() > 0) {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.content));
