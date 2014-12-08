@@ -549,7 +549,10 @@ public class TestHarness implements ErrorInterceptor {
 
         private String contentAsString() throws UnsupportedEncodingException {
             ByteBuf buf = getContent();
-            assertNotNull(buf);
+            if (buf == null) {
+                return null;
+            }
+//            assertNotNull(buf);
             if (!buf.isReadable()) {
                 return null;
             }
