@@ -29,13 +29,12 @@ import com.mastfrog.url.URL;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -121,7 +120,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     private String isRedirect(RequestInfo info, HttpResponse msg) throws UnsupportedEncodingException {
-        HttpResponseStatus status = msg.getStatus();
+        HttpResponseStatus status = msg.status();
         switch (status.code()) {
             case 300:
             case 301:
@@ -129,7 +128,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             case 303:
             case 305:
             case 307:
-                String hdr = URLDecoder.decode(msg.headers().get(HttpHeaders.Names.LOCATION), "UTF-8");
+                String hdr = msg.headers().contains(HttpHeaderNames.LOCATION) ? URLDecoder.decode(msg.headers().get(HttpHeaderNames.LOCATION).toString(), "UTF-8") : null;
                 if (hdr != null) {
                     if (hdr.toLowerCase().startsWith("http://") || hdr.toLowerCase().startsWith("https://")) {
                         return hdr;
@@ -175,10 +174,10 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             if (followRedirects) {
                 String redirUrl = isRedirect(info, state.resp);
                 if (redirUrl != null) {
-                    Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
+                    Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name().toString());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     info.handle.event(new State.Redirect(URL.parse(redirUrl)));
                     info.handle.cancelled = new AtomicBoolean();
@@ -201,13 +200,12 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             }
             state.content.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;
-            if (!last && state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH) != null) {
-                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH));
+            if (!last && state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH) != null) {
+                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH));
                 last = state.content.readableBytes() >= len;
             }
             if (last) {
                 c.content().resetReaderIndex();
-                info.handle.event(new State.FullContentReceived(state.content));
                 sendFullResponse(ctx);
             }
         }
@@ -234,17 +232,20 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         Class<? extends State<?>> type = State.Finished.class;
         state.content.resetReaderIndex();
+        if (info != null) {
+            info.cancelTimer();
+        }
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.content.readableBytes() > 0) {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.content));
-            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.content);
-            for (Map.Entry<String, String> e : state.resp.headers().entries()) {
+            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.content);
+            for (Map.Entry<CharSequence, CharSequence> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());
             }
             state.content.resetReaderIndex();
 
             if (info.r != null) {
-                info.r.internalReceive(state.resp.getStatus(), state.resp.headers(), state.content);
+                info.r.internalReceive(state.resp.status(), state.resp.headers(), state.content);
             }
             state.content.resetReaderIndex();
             info.handle.event(new State.Finished(full));

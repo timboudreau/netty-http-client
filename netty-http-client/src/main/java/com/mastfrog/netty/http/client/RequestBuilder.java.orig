@@ -39,8 +39,6 @@ import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -199,13 +197,13 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             e.addTo(h.headers());
         }
         if (!noHostHeader) {
-            h.headers().add(HttpHeaderNames.HOST, u.getHost().toString());
+            h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
         }
-        if (!h.headers().contains(HttpHeaderNames.CONNECTION) && !noConnectionHeader) {
-            h.headers().add(HttpHeaderNames.CONNECTION, "close");
+        if (!h.headers().contains(HttpHeaders.Names.CONNECTION) && !noConnectionHeader) {
+            h.headers().add(HttpHeaders.Names.CONNECTION, "close");
         }
         if (!noDateHeader) {
-            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toString(DateTime.now()));
+            h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
         }
         if (store != null) {
             store.decorate(h);
@@ -229,9 +227,13 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             setBody(Unpooled.wrappedBuffer((byte[]) o), contentType);
         } else if (o instanceof ByteBuf) {
             body = (ByteBuf) o;
+<<<<<<< HEAD
+            addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE.toString());
+=======
             if (send100Continue) {
-                addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT), HttpHeaderValues.CONTINUE);
+                addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
             }
+>>>>>>> master
             addHeader(Headers.CONTENT_LENGTH, (long) body.readableBytes());
             addHeader(Headers.CONTENT_TYPE, contentType);
         } else if (o instanceof InputStream) {
@@ -277,7 +279,6 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     protected final List<HandlerEntry<?>> handlers = new LinkedList<>();
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> HttpRequestBuilder on(Class<? extends State<T>> event, Receiver<T> r) {
         HandlerEntry<T> h = null;
         for (HandlerEntry<?> e : handlers) {

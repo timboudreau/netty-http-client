@@ -38,7 +38,9 @@ import java.security.cert.X509Certificate;
  */
 final class TrivialTrustManagerFactory extends TrustManagerFactorySpi {
 // Copied from the Netty secure chat example
-    private static final TrustManager DUMMY_TRUST_MANAGER = new X509TrustManager() {
+    private static final TrustManager DUMMY_TRUST_MANAGER = new DummyTrustManager();
+    
+    private static final class DummyTrustManager implements X509TrustManager {
         @Override
         public X509Certificate[] getAcceptedIssuers() {
             return new X509Certificate[0];
@@ -61,15 +63,19 @@ final class TrivialTrustManagerFactory extends TrustManagerFactorySpi {
 //            System.err.println(
 //                    "UNKNOWN SERVER CERTIFICATE: " + chain[0].getSubjectDN());
         }
-    };
-
-    public static TrustManager[] getTrustManagers() {
-        return new TrustManager[] { DUMMY_TRUST_MANAGER };
+    }
+    
+    private final TrustManager[] trustManagers;
+    TrivialTrustManagerFactory(TrustManager... trustManagers) {
+        TrustManager[] result = new TrustManager[trustManagers.length];
+        System.arraycopy(trustManagers, 0, result, 0, trustManagers.length);
+        this.trustManagers = result;
     }
 
     @Override
     protected TrustManager[] engineGetTrustManagers() {
-        return getTrustManagers();
+        return trustManagers.length > 0 ? trustManagers :
+                new TrustManager[] { DUMMY_TRUST_MANAGER };
     }
 
     @Override

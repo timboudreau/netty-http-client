@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.google.common.net.MediaType;
+import com.google.inject.Binder;
 import com.google.inject.Inject;
+import com.google.inject.Module;
 import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
@@ -198,8 +200,13 @@ public class TestHarness implements ErrorInterceptor {
     public TestRequestBuilder trace(String... pathElements) {
         return request(Method.TRACE, pathElements);
     }
+<<<<<<< HEAD
+
+    private ServerControl serverStart;
+=======
     
     private volatile ServerControl serverStart;
+>>>>>>> master
 
     public TestRequestBuilder request(Method m, String... pathElements) {
         if (serverStart == null) {
@@ -424,7 +431,7 @@ public class TestHarness implements ErrorInterceptor {
                 return "[null]";
             }
             StringBuilder sb = new StringBuilder();
-            for (Map.Entry<CharSequence, CharSequence> e : hdrs.entries()) {
+            for (Map.Entry<String, String> e : hdrs.entries()) {
                 sb.append(e.getKey()).append(':').append(' ').append(e.getValue()).append('\n');
             }
             return sb.toString();
@@ -493,7 +500,7 @@ public class TestHarness implements ErrorInterceptor {
                 case Finished:
                 case HeadersReceived:
                     HttpResponse hr = (HttpResponse) state.get();
-                    HttpResponseStatus st = hr.status();
+                    HttpResponseStatus st = hr.getStatus();
                     if (HttpResponseStatus.CONTINUE.equals(st)) {
                         updateState = false;
                     }
@@ -618,7 +625,7 @@ public class TestHarness implements ErrorInterceptor {
 
         private String headersToString() {
             StringBuilder sb = new StringBuilder();
-            for (Map.Entry<CharSequence, CharSequence> e : getHeaders().entries()) {
+            for (Map.Entry<String, String> e : getHeaders().entries()) {
                 sb.append(e.getKey()).append(": ").append(e.getValue()).append("\n");
             }
             return sb.toString();
@@ -628,7 +635,7 @@ public class TestHarness implements ErrorInterceptor {
         public CallResult assertHasHeader(CharSequence name) throws Throwable {
             await(HeadersReceived);
             assertNotNull("Headers never sent", getHeaders());
-            CharSequence val = getHeaders().get(name);
+            String val = getHeaders().get(name);
             assertNotNull("No value for '" + name + "' in \n" + headersToString(), val);
             return this;
         }
@@ -636,7 +643,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable {
             waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", getHeaders());
-            CharSequence val = getHeaders().get(hdr.name().toString());
+            String val = getHeaders().get(hdr.name().toString());
             assertNotNull("No value for '" + hdr.name() + "' in \n" + headersToString(), val);
             T obj = hdr.toValue(val);
             assertEquals(value, obj);
@@ -650,7 +657,7 @@ public class TestHarness implements ErrorInterceptor {
                 await(Closed);
                 h = getHeaders();
             } else {
-                CharSequence s = h.get(lookingFor.toString());
+                String s = h.get(lookingFor.toString());
                 if (s == null) {
                     await(Closed);
                 }
@@ -668,10 +675,10 @@ public class TestHarness implements ErrorInterceptor {
 
         public <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
-            List<CharSequence> all = h.getAll(hdr.name().toString());
+            List<String> all = h.getAll(hdr.name().toString());
             List<T> result = new LinkedList<>();
             if (all != null) {
-                for (CharSequence s : all) {
+                for (String s : all) {
                     result.add(hdr.toValue(s));
                 }
             }
@@ -681,7 +688,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", h);
-            CharSequence result = h.get(hdr.name().toString());
+            String result = h.get(hdr.name().toString());
             if (result != null) {
                 return hdr.toValue(result);
             }
@@ -810,10 +817,10 @@ public class TestHarness implements ErrorInterceptor {
             HttpHeaders curr = getHeaders();
             if (curr != null) {
                 DefaultHttpHeaders hdrs = new DefaultHttpHeaders();
-                for (Map.Entry<CharSequence, CharSequence> e : headers) {
+                for (Map.Entry<String, String> e : headers) {
                     hdrs.add(e.getKey(), e.getValue());
                 }
-                for (Map.Entry<CharSequence, CharSequence> e : curr) {
+                for (Map.Entry<String, String> e : curr) {
                     hdrs.add(e.getKey(), e.getValue());
                 }
                 this.headers.set(hdrs);
@@ -849,7 +856,7 @@ public class TestHarness implements ErrorInterceptor {
 
         public CallResult assertHasCookie(String name) throws Throwable {
             for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
-                if (name.equals(ck.name())) {
+                if (name.equals(ck.getName())) {
                     return this;
                 }
             }
@@ -859,8 +866,8 @@ public class TestHarness implements ErrorInterceptor {
 
         public CallResult assertCookieValue(String name, String val) throws Throwable {
             for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
-                if (name.equals(ck.name())) {
-                    assertEquals(val, ck.value());
+                if (name.equals(ck.getName())) {
+                    assertEquals(val, ck.getValue());
                 }
             }
             return this;

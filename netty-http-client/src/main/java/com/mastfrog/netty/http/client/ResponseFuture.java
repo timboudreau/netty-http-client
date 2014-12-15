@@ -26,7 +26,6 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.joda.time.DateTime;
+import org.joda.time.Duration;
 
 /**
  * Returned from launching an HTTP request; attach handlers using the
@@ -105,6 +105,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return this;
     }
 
+    void onTimeout(Duration dur) {
+        System.out.println("onTimeout");
+        cancel(dur);
+    }
+    
     /**
      * Cancel the associated request. This will make a best-effort, but cannot
      * guarantee, that no state changes will be fired after the final Cancelled.
@@ -112,6 +117,10 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
      * @return true if it succeeded, false if it was already canceled
      */
     public boolean cancel() {
+        return cancel(null);
+    }
+    
+    boolean cancel(Duration forTimeout) {
         boolean result = cancelled.compareAndSet(false, true);
         if (result) {
             try {
@@ -119,11 +128,15 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                 if (fut != null) {
                     fut.cancel(true);
                 }
-                if (fut.channel() != null && fut.channel().isOpen()) {
+                if (fut != null && fut.channel() != null && fut.channel().isOpen()) {
                     fut.channel().close();
                 }
             } finally {
-                event(new State.Cancelled());
+                if (forTimeout != null) {
+                    event(new State.Timeout(forTimeout));
+                } else {
+                    event(new State.Cancelled());
+                }
             }
             latch.countDown();
         }
@@ -149,12 +162,13 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return lastState.get();
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
     <T> void event(State<T> state) {
         Checks.notNull("state", state);
         lastState.set(state.stateType());
         try {
-            if (state instanceof State.Error && cancelled.get()) {
+            if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
 //                System.err.println("Suppressing error after cancel");
                 return;
             }
@@ -163,6 +177,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
             }
             for (HandlerEntry<?> h : handlers) {
                 if (h.state.isInstance(state)) {
+                    @SuppressWarnings("unchecked")
                     HandlerEntry<T> hh = (HandlerEntry<T>) h;
                     hh.onEvent(state);
                 }
@@ -213,6 +228,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return on(type, (Receiver<T>) state.wrapperReceiver(receiver));
     }
 
+    @SuppressWarnings("unchecked")
     public <T> ResponseFuture on(Class<? extends State<T>> state, Receiver<T> receiver) {
         HandlerEntry<T> handler = null;
         for (HandlerEntry<?> h : handlers) {

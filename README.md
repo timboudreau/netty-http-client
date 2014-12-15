@@ -10,19 +10,37 @@ introducing complicated abstractions that try to hide the business of HTTP
 communication;  rather your code can be involved in as much or as little
 of that as necessary.
 
+You can use it from Maven projects [as described here](http://timboudreau.com/builds/).
+
 Features
 --------
 
  * HTTP and HTTPS
  * Simple support for Basic authentication
+ * Optional support for HTTP cookies
  * Easy, typed API for setting headers
  * Fluent builder API for assembling requests
  * Non-blocking, asynchronous
  * Small, low-surface-area API
+ * Pluggable support for SSLContext/TrustManagers for HTTPS
 
 Read the [javadoc](http://timboudreau.com/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/netty-http-client/netty-http-client/target/apidocs/index.html).  The header writing/parsing classes come from [acteur-util](http://timboudreau.com/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/acteur-modules/acteur-parent/acteur-util/target/apidocs/index.html); some URL-related classes are [documented here](http://timboudreau.com/builds/job/mastfrog-parent/lastSuccessfulBuild/artifact/acteur-modules/acteur-parent/url/target/apidocs/index.html).
 
 To use with Maven, add the Maven repo to your project as [described here](http://timboudreau.com/builds/).  Then add groupId ``com.mastfrog`` artifactId ``netty-http-client`` to your POM file.
+
+This project also comes with a test harness which is easy to integrate with unit tests, with built-in methods to assert that the response is what you expect, e.g.
+
+```java
+        harness.get("static/hello.txt").setTimeout(Duration.seconds(1)).go()
+                .assertHasContent()
+                .assertStatus(OK)
+                .assertHasHeader(Headers.LAST_MODIFIED.name())
+                .assertHasHeader(Headers.ETAG.name())
+                .assertContent("hello world")
+                .getHeader(Headers.LAST_MODIFIED);
+```
+
+See the bottom of this document for test harness documentation.
 
 Usage
 -----
@@ -32,6 +50,9 @@ The first thing you need is an ``HttpClient``:
 ```java
 	HttpClient client = HttpClient.builder().followRedirects().build();
 ```
+
+The API is callback-based.  While you can block the current thread until a response is received using `ResponseFuture.await()`,
+the entire *point* of an async I/O is defeated if you do that.  Asynchronous programming means learning to love callbacks.
 
 There are two ways to pay attention to the results of an HTTP call - you can listen
 for <code>State</code> objects which exist for every state transition in the process
@@ -49,6 +70,8 @@ will be called with the response once it arrives.  This looks like
             }
         });
 ```
+
+(ResponseHandler has additional methods you can override to detect error responses, timeouts or refused connections)
 
 You'll note the ``ResponseHandler`` callback is parameterized on String - you can get your content as a
 string, byte array, InputStream or Netty ByteBuf.  You can also pass other types;  Jackson is used to
@@ -86,12 +109,8 @@ Status & To-Dos
 This is a young library;  it works, but it will surely need some polish yet;  and Netty 4.x is still
 changing, including occasional incompatible changes.  Here are some things that would be useful to add:
 
- * Support for caching and automatically setting cookies
-   * With offline persistence?
  * Caching on disk or in memory with proper use of ``If-Modified-Since`` and ``If-None-Match`` headers
  * Zero copy file streaming using Netty's FileRegion
- * Real trust/keystores for HTTPS (currently using the dummy keystore implementation from 
-Netty's secure chat example, which works but is not secure)
  * Better tests (actually start a local server, etc)
 
 License

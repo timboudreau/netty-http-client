@@ -30,6 +30,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import org.joda.time.Duration;
 
 /**
  * Represents the current state of a request, used in notifications.
@@ -157,6 +158,15 @@ public abstract class State<T> {
 
         Error(Throwable t) {
             super(Throwable.class, StateType.Error, t);
+        }
+    }
+    
+    /**
+     * State event triggered when a timeout occurs.
+     */
+    public static final class Timeout extends State<Duration> {
+        Timeout(Duration d) {
+            super(Duration.class, StateType.Timeout, d);
         }
     }
 

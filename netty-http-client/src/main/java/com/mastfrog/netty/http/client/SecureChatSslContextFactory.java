@@ -85,7 +85,7 @@ final class SecureChatSslContextFactory {
 
         try {
             clientContext = SSLContext.getInstance(PROTOCOL);
-            clientContext.init(null, TrivialTrustManagerFactory.getTrustManagers(), null);
+            clientContext.init(null, new TrivialTrustManagerFactory().engineGetTrustManagers(), null);
         } catch (Exception e) {
             throw new Error(
                     "Failed to initialize the client-side SSLContext", e);
