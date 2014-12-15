@@ -36,6 +36,7 @@ import com.mastfrog.acteur.preconditions.Path;
 import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
+import com.timboudreau.netty.http.client.tests.TestModule.App;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -47,7 +48,7 @@ import javax.inject.Inject;
  *
  * @author Tim Boudreau
  */
-public class TestModule extends ServerModule {
+public class TestModule extends ServerModule<App> {
 
     public TestModule() {
         super(App.class);
