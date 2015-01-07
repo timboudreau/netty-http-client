@@ -293,6 +293,7 @@ public final class HttpClient {
         bootstrap.option(setting.option(), setting.value());
     }
 
+    @SuppressWarnings("unchecked")
     private synchronized Bootstrap start() {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
@@ -314,6 +315,7 @@ public final class HttpClient {
         return bootstrap;
     }
 
+    @SuppressWarnings("unchecked")
     private synchronized Bootstrap startSsl() {
         if (bootstrapSsl == null) {
             bootstrapSsl = new Bootstrap();
@@ -325,7 +327,7 @@ public final class HttpClient {
             if (timeout != null) {
                 bootstrapSsl.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
             }
-            for (ChannelOptionSetting setting : settings) {
+            for (ChannelOptionSetting<?> setting : settings) {
                 option(bootstrapSsl, setting);
             }
             bootstrapSsl.channelFactory(new NioChannelFactory());

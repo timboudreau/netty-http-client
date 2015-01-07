@@ -262,7 +262,7 @@ public final class HttpClientBuilder {
         private final ChannelOption<T> option;
         private final T value;
 
-        public ChannelOptionSetting(ChannelOption option, T value) {
+        public ChannelOptionSetting(ChannelOption<T> option, T value) {
             this.option = option;
             this.value = value;
         }
