@@ -334,6 +334,7 @@ public final class CookieStore implements Iterable<Cookie> {
         om.writeValue(out, list);
     }
 
+    @SuppressWarnings("unchecked")
     public void read(InputStream in) throws IOException {
         ObjectMapper om = new ObjectMapper();
         List<Map<String, Object>> l = om.readValue(in, List.class);

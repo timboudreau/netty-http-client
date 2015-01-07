@@ -233,7 +233,7 @@ public final class HttpClientBuilder {
                 it.remove();
             }
         }
-        settings.add(new ChannelOptionSetting(option, value));
+        settings.add(new ChannelOptionSetting<T>(option, value));
         return this;
     }
 

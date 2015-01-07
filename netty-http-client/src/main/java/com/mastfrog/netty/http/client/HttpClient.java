@@ -50,8 +50,6 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.nio.channels.SocketChannel;
@@ -308,7 +306,7 @@ public final class HttpClient {
             if (timeout != null) {
                 bootstrap.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
             }
-            for (ChannelOptionSetting setting : settings) {
+            for (ChannelOptionSetting<?> setting : settings) {
                 option(bootstrap, setting);
             }
             bootstrap.channelFactory(new NioChannelFactory());
@@ -408,7 +406,7 @@ public final class HttpClient {
         }
     }
 
-    static final class TimeoutTimerTask extends TimerTask {
+    static final class TimeoutTimerTask extends TimerTask implements ChannelFutureListener {
 
         private final AtomicBoolean cancelled;
         private final ResponseFuture handle;
@@ -434,6 +432,13 @@ public final class HttpClient {
                     r.onError(new TimeoutException(in.timeout.toString()));
                 }
             }
+            super.cancel();
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture f) throws Exception {
+            cancelled.set(true);
+            super.cancel();
         }
     }
 
@@ -459,8 +464,8 @@ public final class HttpClient {
             if (!url.isValid()) {
                 throw new IllegalArgumentException(url.getProblems() + "");
             }
+            TimeoutTimerTask tt = null;
             if (info == null) {
-                TimerTask tt = null;
                 info = new RequestInfo(url, req, cancelled, handle, r, timeout, tt);
                 if (timeout != null) {
                     tt = new TimeoutTimerTask(cancelled, handle, r, info);
@@ -475,6 +480,9 @@ public final class HttpClient {
             //XXX who is escaping this?
             req.setUri(req.getUri().replaceAll("%5f", "_"));
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
+            if (tt != null) {
+                fut.channel().closeFuture().addListener(tt);
+            }
             fut.channel().attr(KEY).set(info);
             handle.setFuture(fut);
             if (!monitors.isEmpty()) {
@@ -607,6 +615,7 @@ public final class HttpClient {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public <T> HttpRequestBuilder on(StateType event, Receiver<T> r) {
             super.on((Class<? extends State<T>>) event.type(), (Receiver) event.wrapperReceiver(r));
             return this;

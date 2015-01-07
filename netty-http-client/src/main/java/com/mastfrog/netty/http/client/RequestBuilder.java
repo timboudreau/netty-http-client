@@ -275,6 +275,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     protected final List<HandlerEntry<?>> handlers = new LinkedList<>();
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> HttpRequestBuilder on(Class<? extends State<T>> event, Receiver<T> r) {
         HandlerEntry<T> h = null;
         for (HandlerEntry<?> e : handlers) {

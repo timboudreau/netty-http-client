@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.google.common.net.MediaType;
-import com.google.inject.Binder;
 import com.google.inject.Inject;
-import com.google.inject.Module;
 import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
@@ -42,7 +40,6 @@ import java.lang.reflect.Array;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -62,7 +59,6 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.locks.Condition;
 import static org.junit.Assert.fail;
 
 /**
@@ -90,10 +86,10 @@ public class TestHarness implements ErrorInterceptor {
             reg.add(new Shutdown());
         }
     }
-    
+
     /**
      * Constructor for manual construction
-     * 
+     *
      * @param port The port
      * @param client An http client
      */
@@ -102,7 +98,7 @@ public class TestHarness implements ErrorInterceptor {
         this.port = port;
         this.client = client;
     }
-    
+
     public Server getServer() {
         return server;
     }
@@ -202,7 +198,7 @@ public class TestHarness implements ErrorInterceptor {
     public TestRequestBuilder trace(String... pathElements) {
         return request(Method.TRACE, pathElements);
     }
-    
+
     private volatile ServerControl serverStart;
 
     public TestRequestBuilder request(Method m, String... pathElements) {
@@ -844,7 +840,7 @@ public class TestHarness implements ErrorInterceptor {
                 return;
             }
             if (this.content.get() != null && log) {
-//                throw new Error("Replace content? Old: " + bufToString(this.content.get()) 
+//                throw new Error("Replace content? Old: " + bufToString(this.content.get())
 //                        + " NEW " + bufToString(content));
                 System.out.println("Replacing old content: " + bufToString(this.content.get()));
             }
@@ -868,6 +864,29 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
             return this;
+        }
+
+        @Override
+        public Cookie getCookie(String cookieName) throws InterruptedException {
+            HttpHeaders headers = getHeaders();
+            for (String cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
+                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
+                if (cookieName.equals(cookie.getName())) {
+                    return cookie;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public String getCookieValue(String cookieName) throws InterruptedException {
+            Cookie cookie = getCookie(cookieName);
+            return cookie == null ? null : cookie.getValue();
+        }
+
+        @Override
+        public CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable {
+            return assertHasHeader(name.name());
         }
     }
 
@@ -905,6 +924,8 @@ public class TestHarness implements ErrorInterceptor {
 
         CallResult assertHasHeader(String name) throws Throwable;
 
+        CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable;
+
         <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException;
 
         <T> CallResult assertContent(Class<T> type, T compareTo) throws Throwable;
@@ -914,6 +935,10 @@ public class TestHarness implements ErrorInterceptor {
         <T> CallResult assertHasContent() throws Throwable;
 
         <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws Throwable;
+
+        Cookie getCookie(String cookieName) throws Throwable;
+
+        String getCookieValue(String cookieName) throws Throwable;
     }
 
     private static class NamedLatch extends CountDownLatch {
@@ -951,10 +976,11 @@ public class TestHarness implements ErrorInterceptor {
             return name + " (" + getCount() + ")";
         }
     }
-    
+
     private static class Fake implements Server, ServerControl {
+
         private final int port;
-        
+
         Fake(int port) {
             this.port = port;
         }
@@ -996,14 +1022,14 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public void await() throws InterruptedException {
-            synchronized(this) {
+            synchronized (this) {
                 wait();
             }
         }
 
         @Override
         public void awaitUninterruptibly() {
-            synchronized(this) {
+            synchronized (this) {
                 for (;;) {
                     try {
                         wait();

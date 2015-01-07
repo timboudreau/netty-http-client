@@ -163,6 +163,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     }
 
     private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
+    @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {
         Checks.notNull("state", state);
         lastState.set(state.stateType());
@@ -226,6 +227,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return on(type, (Receiver<T>) state.wrapperReceiver(receiver));
     }
 
+    @SuppressWarnings("unchecked")
     public <T> ResponseFuture on(Class<? extends State<T>> state, Receiver<T> receiver) {
         HandlerEntry<T> handler = null;
         for (HandlerEntry<?> h : handlers) {
