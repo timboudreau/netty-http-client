@@ -93,7 +93,7 @@ public class TestModule extends ServerModule<App> {
             ck.setMaxAge(500);
             ck.setPath("/ok");
             add(Headers.SET_COOKIE, ck);
-            setState(new ConsumedLockedState());
+            next();
         }
     }
 
