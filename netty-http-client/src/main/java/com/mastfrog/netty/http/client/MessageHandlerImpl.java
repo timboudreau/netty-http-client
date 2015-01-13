@@ -26,8 +26,8 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.url.URL;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
@@ -96,10 +96,20 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     static class ResponseState {
 
-        final CompositeByteBuf content = Unpooled.compositeBuffer();
-//        final ByteBuf content = Unpooled.buffer();
+        private final CompositeByteBuf content;
         volatile HttpResponse resp;
         volatile boolean fullResponseSent;
+
+        public ResponseState(ChannelHandlerContext ctx) {
+            content = ctx.alloc().compositeBuffer();
+        }
+
+        void append(ByteBuf buf) {
+            int ix = content.writerIndex();
+            int added = buf.readableBytes();
+            content.addComponent(buf);
+            content.writerIndex(ix + added);
+        }
 
         boolean hasResponse() {
             return resp != null;
@@ -112,7 +122,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         Attribute<ResponseState> st = ctx.channel().attr(RS);
         ResponseState rs = st.get();
         if (rs == null) {
-            rs = new ResponseState();
+            rs = new ResponseState(ctx);
             st.set(rs);
         }
         return rs;
@@ -136,12 +146,10 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                         String pth = orig.getPath() == null ? "/" : URLDecoder.decode(orig.getPath().toString(), "UTF-8");
                         if (hdr.startsWith("/")) {
                             pth = hdr;
+                        } else if (pth.endsWith("/")) {
+                            pth += hdr;
                         } else {
-                            if (pth.endsWith("/")) {
-                                pth += hdr;
-                            } else {
-                                pth += "/" + hdr;
-                            }
+                            pth += "/" + hdr;
                         }
                         StringBuilder sb = new StringBuilder(orig.getProtocol().toString());
                         sb.append("://").append(orig.getHost());
@@ -195,7 +203,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             info.handle.event(new State.ContentReceived(c));
             c.content().resetReaderIndex();
             if (c.content().readableBytes() > 0) {
-                state.content.writeBytes(c.content());
+                state.append(c.content());
             }
             state.content.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;

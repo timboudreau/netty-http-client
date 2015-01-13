@@ -33,6 +33,7 @@ import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ChannelFactory;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -570,11 +571,20 @@ public final class HttpClient {
             store.extract(headerContainer.headers());
         }
     }
+    
+    private ByteBufAllocator alloc() {
+        for (ChannelOptionSetting<?> setting : this.settings) {
+            if (setting.option().equals(ChannelOption.ALLOCATOR)) {
+                return (ByteBufAllocator) setting.value();
+            }
+        }
+        return PooledByteBufAllocator.DEFAULT;
+    }
 
     private final class RB extends RequestBuilder {
 
         RB(Method method) {
-            super(method);
+            super(method, alloc());
             this.send100Continue = HttpClient.this.send100continue;
         }
 

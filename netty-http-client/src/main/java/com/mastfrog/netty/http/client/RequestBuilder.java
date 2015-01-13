@@ -35,7 +35,9 @@ import com.mastfrog.url.URLBuilder;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufOutputStream;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
@@ -65,9 +67,11 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     private HttpVersion version = HttpVersion.HTTP_1_1;
     protected CookieStore store;
     Duration timeout;
+    private final ByteBufAllocator alloc;
 
-    RequestBuilder(Method method) {
+    RequestBuilder(Method method, ByteBufAllocator alloc) {
         this.method = method;
+        this.alloc = alloc;
     }
 
     @Override
@@ -174,7 +178,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         noHostHeader = true;
         return this;
     }
-    
+
     public RequestBuilder setCookieStore(CookieStore store) {
         this.store = store;
         return this;
@@ -214,7 +218,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     public URL toURL() {
         return url.create();
     }
-    
+
     private ByteBuf body;
     boolean send100Continue = true;
 
@@ -224,7 +228,9 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             CharSequence seq = (CharSequence) o;
             setBody(seq.toString().getBytes(CharsetUtil.UTF_8), contentType);
         } else if (o instanceof byte[]) {
-            setBody(Unpooled.wrappedBuffer((byte[]) o), contentType);
+            byte[] b = (byte[]) o;
+            ByteBuf buffer = alloc.buffer(b.length).writeBytes(b);
+            setBody(buffer, contentType);
         } else if (o instanceof ByteBuf) {
             body = (ByteBuf) o;
             if (send100Continue) {
@@ -263,7 +269,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     protected final List<Receiver<State<?>>> any = new LinkedList<>();
 
     protected ByteBuf newByteBuf() {
-        return Unpooled.buffer();
+        return alloc.buffer();
     }
 
     @Override
