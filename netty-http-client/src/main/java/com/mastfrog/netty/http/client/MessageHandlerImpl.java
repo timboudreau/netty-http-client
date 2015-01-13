@@ -235,8 +235,8 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     void sendFullResponse(ChannelHandlerContext ctx) {
-        ResponseState state = state(ctx);
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
+        ResponseState state = state(ctx);
         Class<? extends State<?>> type = State.Finished.class;
         state.content.resetReaderIndex();
         if (info != null) {

@@ -25,7 +25,6 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.url.URL;
 import io.netty.handler.codec.http.HttpRequest;
-import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,7 +46,7 @@ final class RequestInfo {
     final Duration timeout;
     final DateTime startTime;
     volatile boolean listenerAdded;
-    final TimerTask timer;
+    TimerTask timer;
 
     public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, TimerTask timer) {
         this.url = url;

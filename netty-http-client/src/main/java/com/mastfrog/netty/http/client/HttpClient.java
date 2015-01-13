@@ -474,6 +474,7 @@ public final class HttpClient {
                     tt = new TimeoutTimerTask(cancelled, handle, r, info);
                     timer.schedule(tt, timeout.getMillis());
                 }
+                info.timer = tt;
             }
             if (info.isExpired()) {
                 handle.event(new State.Timeout(info.age()));
