@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2014 tim.
+ * Copyright 2015 Tim Boudreau
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,9 +37,15 @@ import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.DefaultCookie;
+import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.LastHttpContent;
 import java.io.IOException;
 import javax.inject.Inject;
 
@@ -59,6 +65,7 @@ public class TestModule extends ServerModule<App> {
         public App() {
             add(OkPage.class);
             add(CookiePage.class);
+            add(IncrementalPage.class);
         }
     }
 
@@ -121,6 +128,38 @@ public class TestModule extends ServerModule<App> {
             ck.setPath(evt.getPath().toStringWithLeadingSlash());
             add(Headers.SET_COOKIE, ck);
             ok(value);
+        }
+    }
+
+    @Methods(Method.GET)
+    @Path("/incremental")
+    static class IncrementalPage extends Page {
+
+        IncrementalPage() {
+            add(IncrementalActeur.class);
+        }
+    }
+
+    static class IncrementalActeur extends Acteur implements ChannelFutureListener {
+
+        private volatile int callCount;
+
+        IncrementalActeur() {
+            ok();
+            setChunked(true);
+            setResponseBodyWriter(this);
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture f) throws Exception {
+            int count = callCount++;
+            if (count == 5) {
+                f.channel().writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                return;
+            }
+            ByteBuf buf = f.channel().alloc().buffer(50);
+            ByteBufUtil.writeAscii(buf, "This is call " + count);
+            f.channel().writeAndFlush(new DefaultHttpContent(buf)).addListener(this);
         }
     }
 

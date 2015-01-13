@@ -86,6 +86,10 @@ public class TestHarness implements ErrorInterceptor {
             reg.add(new Shutdown());
         }
     }
+    
+    public HttpClient client() {
+        return client;
+    }
 
     /**
      * Constructor for manual construction
@@ -233,6 +237,12 @@ public class TestHarness implements ErrorInterceptor {
 
         TestRequestBuilder(HttpRequestBuilder bldr) {
             this.bldr = bldr;
+        }
+
+        @Override
+        public HttpRequestBuilder dontAggregateResponse() {
+            bldr.dontAggregateResponse();
+            return this;
         }
 
         public TestRequestBuilder setTimeout(Duration dur) {

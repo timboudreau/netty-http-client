@@ -375,7 +375,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
-        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout);
+        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout, info.dontAggregate);
     }
 
     private Bootstrap bootstrap;
@@ -445,7 +445,7 @@ public final class HttpClient {
         }
     }
 
-    private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info, Duration timeout) {
+    private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
         if (info != null && info.isExpired()) {
             cancelled.set(true);
         }
@@ -469,7 +469,7 @@ public final class HttpClient {
             }
             TimeoutTimerTask tt = null;
             if (info == null) {
-                info = new RequestInfo(url, req, cancelled, handle, r, timeout, tt);
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, tt, noAggregate);
                 if (timeout != null) {
                     tt = new TimeoutTimerTask(cancelled, handle, r, info);
                     timer.schedule(tt, timeout.getMillis());
@@ -612,7 +612,7 @@ public final class HttpClient {
                         = createHandler(State.HeadersReceived.class, new StoreHandler(theStore));
                 handle.handlers.add(entry);
             }
-            submit(u, req, cancelled, handle, r, null, this.timeout);
+            submit(u, req, cancelled, handle, r, null, this.timeout, noAggregate);
             return handle;
         }
 

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -96,19 +96,29 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     static class ResponseState {
 
-        private final CompositeByteBuf content;
+        private final CompositeByteBuf aggregateContent;
         volatile HttpResponse resp;
         volatile boolean fullResponseSent;
+        private int readableBytes;
+        private final boolean dontAggregate;
 
-        public ResponseState(ChannelHandlerContext ctx) {
-            content = ctx.alloc().compositeBuffer();
+        public ResponseState(ChannelHandlerContext ctx, boolean dontAggregate) {
+            aggregateContent = ctx.alloc().compositeBuffer();
+            this.dontAggregate = dontAggregate;
+        }
+
+        int readableBytes() {
+            return readableBytes;
         }
 
         void append(ByteBuf buf) {
-            int ix = content.writerIndex();
-            int added = buf.readableBytes();
-            content.addComponent(buf);
-            content.writerIndex(ix + added);
+            readableBytes += buf.readableBytes();
+            if (!dontAggregate) {
+                int ix = aggregateContent.writerIndex();
+                int added = buf.readableBytes();
+                aggregateContent.addComponent(buf);
+                aggregateContent.writerIndex(ix + added);
+            }
         }
 
         boolean hasResponse() {
@@ -118,11 +128,11 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     public static final AttributeKey<ResponseState> RS = AttributeKey.<ResponseState>valueOf("state");
 
-    private ResponseState state(ChannelHandlerContext ctx) {
+    private ResponseState state(ChannelHandlerContext ctx, RequestInfo info) {
         Attribute<ResponseState> st = ctx.channel().attr(RS);
         ResponseState rs = st.get();
         if (rs == null) {
-            rs = new ResponseState(ctx);
+            rs = new ResponseState(ctx, info.dontAggregate);
             st.set(rs);
         }
         return rs;
@@ -175,7 +185,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         if (checkCancelled(ctx)) {
             return;
         }
-        final ResponseState state = state(ctx);
+        final ResponseState state = state(ctx, info);
         if (msg instanceof HttpResponse) {
             state.resp = (HttpResponse) msg;
             if (followRedirects) {
@@ -184,7 +194,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     info.handle.event(new State.Redirect(URL.parse(redirUrl)));
                     info.handle.cancelled = new AtomicBoolean();
@@ -205,11 +215,11 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             if (c.content().readableBytes() > 0) {
                 state.append(c.content());
             }
-            state.content.resetReaderIndex();
+            state.aggregateContent.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;
             if (!last && state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH) != null) {
                 long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH));
-                last = state.content.readableBytes() >= len;
+                last = state.readableBytes() >= len;
             }
             if (last) {
                 c.content().resetReaderIndex();
@@ -236,27 +246,30 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     void sendFullResponse(ChannelHandlerContext ctx) {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-        ResponseState state = state(ctx);
+        if (info.dontAggregate) {
+            return;
+        }
+        ResponseState state = state(ctx, info);
         Class<? extends State<?>> type = State.Finished.class;
-        state.content.resetReaderIndex();
+        state.aggregateContent.resetReaderIndex();
         if (info != null) {
             info.cancelTimer();
         }
-        if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.content.readableBytes() > 0) {
+        if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.aggregateContent.readableBytes() > 0) {
             state.fullResponseSent = true;
-            info.handle.event(new State.FullContentReceived(state.content));
-            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.content);
+            info.handle.event(new State.FullContentReceived(state.aggregateContent));
+            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.aggregateContent);
             for (Map.Entry<String, String> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());
             }
-            state.content.resetReaderIndex();
+            state.aggregateContent.resetReaderIndex();
 
             if (info.r != null) {
-                info.r.internalReceive(state.resp.getStatus(), state.resp.headers(), state.content);
+                info.r.internalReceive(state.resp.getStatus(), state.resp.headers(), state.aggregateContent);
             }
-            state.content.resetReaderIndex();
+            state.aggregateContent.resetReaderIndex();
             info.handle.event(new State.Finished(full));
-            state.content.resetReaderIndex();
+            state.aggregateContent.resetReaderIndex();
             info.handle.trigger();
         }
     }

@@ -37,8 +37,6 @@ import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufOutputStream;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -68,6 +66,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     protected CookieStore store;
     Duration timeout;
     private final ByteBufAllocator alloc;
+    protected boolean noAggregate;
 
     RequestBuilder(Method method, ByteBufAllocator alloc) {
         this.method = method;
@@ -189,6 +188,16 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             throw new IllegalStateException("URL not set");
         }
         URL u = getURL();
+        if (!u.isValid()) {
+            if (u.getProblems() != null) {
+                u.getProblems().throwIfFatalPresent();
+            } else {
+                throw new IllegalArgumentException("Invalid url " + u);
+            }
+        }
+        if (u.getHost() == null) {
+            throw new IllegalStateException("URL host not set: " + u);
+        }
         String uri = u.getPathAndQuery();
         if (uri.isEmpty()) {
             uri = "/";
@@ -317,5 +326,11 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         void addTo(HttpHeaders h) {
             h.add(type.name(), type.toString(value));
         }
+    }
+
+    @Override
+    public HttpRequestBuilder dontAggregateResponse() {
+        noAggregate = true;
+        return this;
     }
 }

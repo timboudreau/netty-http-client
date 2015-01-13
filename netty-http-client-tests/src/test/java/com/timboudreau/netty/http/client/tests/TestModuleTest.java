@@ -27,12 +27,23 @@ import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.giulius.tests.GuiceRunner;
 import com.mastfrog.giulius.tests.TestWith;
 import com.mastfrog.netty.http.client.CookieStore;
+import com.mastfrog.netty.http.client.StateType;
 import com.mastfrog.netty.http.test.harness.TestHarness;
 import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
+import com.mastfrog.util.Streams;
+import com.mastfrog.util.thread.Receiver;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpResponse;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import io.netty.handler.codec.http.LastHttpContent;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.runner.RunWith;
@@ -78,6 +89,67 @@ public class TestModuleTest {
         assertEquals(store + "", "baz", store.get("wump"));
         assertEquals(store + "", "bar", store.get("foo"));
 
+        R r = new R();
+        Resp resp = new Resp();
+        FullResp full = new FullResp();
+        harn.get("incremental")
+                .dontAggregateResponse()
+                .on(StateType.ContentReceived, r)
+                .on(StateType.FullContentReceived, full)
+                .on(StateType.HeadersReceived, resp)
+                .execute();
+        synchronized (r) {
+            r.wait(2000);
+        }
+        assertTrue(resp.called);
+        assertEquals(5, r.found.size());
+        for (int i = 0; i < 5; i++) {
+            assertEquals("This is call " + i, r.found.get(i));
+        }
+        Thread.sleep(2000);
+        assertFalse(full.called);
+    }
+
+    static class R extends Receiver<HttpContent> {
+
+        private final List<String> found = Collections.synchronizedList(new LinkedList<>());
+
+        @Override
+        public void receive(HttpContent object) {
+            if (object instanceof LastHttpContent) {
+                synchronized (this) {
+                    notifyAll();
+                    return;
+                }
+            }
+            String content;
+            try (ByteBufInputStream in = new ByteBufInputStream(object.content())) {
+                content = Streams.readString(in);
+                found.add(content);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    static class Resp extends Receiver<HttpResponse> {
+
+        volatile boolean called;
+
+        @Override
+        public void receive(HttpResponse object) {
+            called = true;
+        }
+    }
+
+    static class FullResp extends Receiver<FullHttpResponse> {
+
+        volatile boolean called;
+
+        @Override
+        public void receive(FullHttpResponse object) {
+            called = true;
+        }
     }
 
 }
