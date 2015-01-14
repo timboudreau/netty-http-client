@@ -432,7 +432,7 @@ public final class HttpClient {
                     handle.onTimeout(in.age());
                 }
                 if (r != null) {
-                    r.onError(new TimeoutException(in.timeout.toString()));
+                    r.onError(new NoStackTimeoutException(in.timeout.toString()));
                 }
             }
             super.cancel();
@@ -442,6 +442,24 @@ public final class HttpClient {
         public void operationComplete(ChannelFuture f) throws Exception {
             cancelled.set(true);
             super.cancel();
+        }
+    }
+
+    private static class NoStackTimeoutException extends TimeoutException {
+        // Minor optimization - creating the stack trace is expensive if
+        // the stack is deep
+        NoStackTimeoutException(String msg) {
+            super(msg);
+        }
+
+        @Override
+        public StackTraceElement[] getStackTrace() {
+            return new StackTraceElement[0];
+        }
+        
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
         }
     }
 
