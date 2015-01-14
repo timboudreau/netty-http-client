@@ -146,7 +146,7 @@ public final class HttpClient {
     private final boolean followRedirects;
     private final String userAgent;
     private final List<RequestInterceptor> interceptors;
-    private final Iterable<ChannelOptionSetting> settings;
+    private final Iterable<ChannelOptionSetting<?>> settings;
     private final boolean send100continue;
     private final CookieStore cookies;
     private final Duration timeout;
@@ -155,7 +155,7 @@ public final class HttpClient {
     private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting>emptyList(), true, null, null, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null);
     }
 
     /**
@@ -189,7 +189,7 @@ public final class HttpClient {
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
-            Iterable<ChannelOptionSetting> settings, boolean send100continue,
+            Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
             CookieStore cookies, Duration timeout, SSLContext sslContext, TrustManager... managers) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;

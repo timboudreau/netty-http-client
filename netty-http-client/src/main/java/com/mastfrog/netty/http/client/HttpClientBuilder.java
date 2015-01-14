@@ -214,7 +214,7 @@ public final class HttpClientBuilder {
         return this;
     }
 
-    private final List<ChannelOptionSetting> settings = new LinkedList<>();
+    private final List<ChannelOptionSetting<?>> settings = new LinkedList<>();
 
     /**
      * Set a low-level setting for the Netty pipeline.  See the
@@ -227,7 +227,7 @@ public final class HttpClientBuilder {
      * @return this
      */
     public <T> HttpClientBuilder setChannelOption(ChannelOption<T> option, T value) {
-        for (Iterator<ChannelOptionSetting> it = settings.iterator(); it.hasNext();) {
+        for (Iterator<ChannelOptionSetting<?>> it = settings.iterator(); it.hasNext();) {
             ChannelOptionSetting setting = it.next();
             if (setting.equals(option)) {
                 it.remove();
