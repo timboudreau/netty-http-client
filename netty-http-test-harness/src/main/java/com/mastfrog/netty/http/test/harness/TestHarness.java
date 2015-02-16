@@ -76,17 +76,19 @@ public class TestHarness implements ErrorInterceptor {
     private final Server server;
     private final HttpClient client;
     private final int port;
+    private final ObjectMapper mapper;
 
     @Inject
-    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client) throws IOException {
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
         this.client = client;
         if (reg != null) {
             reg.add(new Shutdown());
         }
+        this.mapper = mapper;
     }
-    
+
     public HttpClient client() {
         return client;
     }
@@ -97,10 +99,11 @@ public class TestHarness implements ErrorInterceptor {
      * @param port The port
      * @param client An http client
      */
-    public TestHarness(int port, HttpClient client) {
+    public TestHarness(int port, HttpClient client, ObjectMapper mapper) {
         this.server = new Fake(port);
         this.port = port;
         this.client = client;
+        this.mapper = mapper == null ? new ObjectMapper() : mapper;
     }
 
     public Server getServer() {
@@ -217,7 +220,7 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
         }
-        TestRequestBuilder result = new TestRequestBuilder(client.request(m).setHost("localhost").setPort(server.getPort()));
+        TestRequestBuilder result = new TestRequestBuilder(client.request(m).setHost("localhost").setPort(server.getPort()), mapper);
         for (String el : pathElements) {
             String[] parts = el.split("/");
             for (String part : parts) {
@@ -234,9 +237,11 @@ public class TestHarness implements ErrorInterceptor {
 
         private final HttpRequestBuilder bldr;
         private Duration timeout = Duration.standardSeconds(10);
+        private final ObjectMapper mapper;
 
-        TestRequestBuilder(HttpRequestBuilder bldr) {
+        TestRequestBuilder(HttpRequestBuilder bldr, ObjectMapper mapper) {
             this.bldr = bldr;
+            this.mapper = mapper;
         }
 
         @Override
@@ -348,6 +353,10 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public TestRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
+            if (o != null && !(o instanceof CharSequence)) {
+                // The HttpClient does not have our object mapper
+                o = mapper.writeValueAsString(o);
+            }
             bldr.setBody(o, contentType);
             return this;
         }
@@ -383,7 +392,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         public CallResult go() {
-            CallResultImpl impl = new CallResultImpl(toURL(), timeout, log);
+            CallResultImpl impl = new CallResultImpl(toURL(), timeout, log, mapper);
             onEvent(impl);
             impl.future = execute();
             return impl;
@@ -419,14 +428,16 @@ public class TestHarness implements ErrorInterceptor {
         private Throwable err;
         private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, CountDownLatch>(StateType.class));
         private final Duration timeout;
+        private final ObjectMapper mapper;
 
-        private CallResultImpl(URL toURL, Duration timeout, boolean log) {
+        private CallResultImpl(URL toURL, Duration timeout, boolean log, ObjectMapper mapper) {
             this.log = log;
             this.url = toURL;
             for (StateType type : StateType.values()) {
                 latches.put(type, new NamedLatch(type.name()));
             }
             this.timeout = timeout;
+            this.mapper = mapper;
         }
 
         private String headersToString(HttpHeaders hdrs) {
@@ -722,7 +733,7 @@ public class TestHarness implements ErrorInterceptor {
                 buf.readBytes(b);
                 return type.cast(new String(b, "UTF-8"));
             } else {
-                ObjectMapper m = new ObjectMapper();
+                ObjectMapper m = mapper;
                 try {
                     return m.readValue(new ByteBufInputStream(buf), type);
                 } catch (JsonParseException | JsonMappingException ex) {
