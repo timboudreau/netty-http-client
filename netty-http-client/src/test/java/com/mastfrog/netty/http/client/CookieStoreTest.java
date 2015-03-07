@@ -76,7 +76,6 @@ public class CookieStoreTest {
         store.decorate(req);
 
         List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE.name());
-        System.out.println("COOKIE HEADERS: " + cookieHeaders);
         assertEquals(2, cookieHeaders.size());
 
         List<String> find = new LinkedList<>(Arrays.asList("foo", "one"));

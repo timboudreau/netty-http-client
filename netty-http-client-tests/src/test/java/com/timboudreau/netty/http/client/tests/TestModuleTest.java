@@ -112,7 +112,7 @@ public class TestModuleTest {
 
     static class R extends Receiver<HttpContent> {
 
-        private final List<String> found = Collections.synchronizedList(new LinkedList<>());
+        private final List<String> found = Collections.<String>synchronizedList(new LinkedList<String>());
 
         @Override
         public void receive(HttpContent object) {

@@ -198,10 +198,10 @@ public final class HttpClient {
         this.maxHeadersSize = maxHeadersSize;
         this.followRedirects = followRedirects;
         this.userAgent = userAgent;
-        this.interceptors = interceptors == null ? Collections.emptyList()
+        this.interceptors = interceptors == null ? Collections.<RequestInterceptor>emptyList()
                 : new ImmutableList.Builder<RequestInterceptor>()
                 .addAll(interceptors).build();
-        this.settings = settings == null ? Collections.emptySet() : settings;
+        this.settings = settings == null ? Collections.<ChannelOptionSetting<?>>emptySet() : settings;
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
@@ -463,7 +463,7 @@ public final class HttpClient {
         }
     }
 
-    private void submit(URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
+    private void submit(final URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
         if (info != null && info.isExpired()) {
             cancelled.set(true);
         }
