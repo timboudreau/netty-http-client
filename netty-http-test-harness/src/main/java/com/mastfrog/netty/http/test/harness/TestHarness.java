@@ -909,6 +909,11 @@ public class TestHarness implements ErrorInterceptor {
         public CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable {
             return assertHasHeader(name.name());
         }
+
+        @Override
+        public HttpResponseStatus status() {
+            return status.get();
+        }
     }
 
     public interface CallResult {
@@ -960,6 +965,8 @@ public class TestHarness implements ErrorInterceptor {
         Cookie getCookie(String cookieName) throws Throwable;
 
         String getCookieValue(String cookieName) throws Throwable;
+        
+        HttpResponseStatus status();
     }
 
     private static class NamedLatch extends CountDownLatch {
