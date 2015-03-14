@@ -347,6 +347,7 @@ public final class HttpClient {
                 group.shutdownNow();
             }
         }
+        timer.cancel();
     }
 
     void copyHeaders(HttpRequest from, HttpRequest to) {
