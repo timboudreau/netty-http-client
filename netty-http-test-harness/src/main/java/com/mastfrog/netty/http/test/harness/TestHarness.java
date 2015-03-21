@@ -76,29 +76,36 @@ public class TestHarness implements ErrorInterceptor {
     private final Server server;
     private final HttpClient client;
     private final int port;
+    private final ObjectMapper mapper;
 
     @Inject
-    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client) throws IOException {
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
         this.client = client;
         if (reg != null) {
             reg.add(new Shutdown());
         }
+        this.mapper = mapper;
     }
-    
+
+    public HttpClient client() {
+        return client;
+    }
+
     /**
      * Constructor for manual construction
-     * 
+     *
      * @param port The port
      * @param client An http client
      */
-    public TestHarness(int port, HttpClient client) {
+    public TestHarness(int port, HttpClient client, ObjectMapper mapper) {
         this.server = new Fake(port);
         this.port = port;
         this.client = client;
+        this.mapper = mapper == null ? new ObjectMapper() : mapper;
     }
-    
+
     public Server getServer() {
         return server;
     }
@@ -198,7 +205,7 @@ public class TestHarness implements ErrorInterceptor {
     public TestRequestBuilder trace(String... pathElements) {
         return request(Method.TRACE, pathElements);
     }
-    
+
     private volatile ServerControl serverStart;
 
     public TestRequestBuilder request(Method m, String... pathElements) {
@@ -213,7 +220,7 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
         }
-        TestRequestBuilder result = new TestRequestBuilder(client.request(m).setHost("localhost").setPort(server.getPort()));
+        TestRequestBuilder result = new TestRequestBuilder(client.request(m).setHost("localhost").setPort(server.getPort()), mapper);
         for (String el : pathElements) {
             String[] parts = el.split("/");
             for (String part : parts) {
@@ -230,9 +237,17 @@ public class TestHarness implements ErrorInterceptor {
 
         private final HttpRequestBuilder bldr;
         private Duration timeout = Duration.standardSeconds(10);
+        private final ObjectMapper mapper;
 
-        TestRequestBuilder(HttpRequestBuilder bldr) {
+        TestRequestBuilder(HttpRequestBuilder bldr, ObjectMapper mapper) {
             this.bldr = bldr;
+            this.mapper = mapper;
+        }
+
+        @Override
+        public HttpRequestBuilder dontAggregateResponse() {
+            bldr.dontAggregateResponse();
+            return this;
         }
 
         public TestRequestBuilder setTimeout(Duration dur) {
@@ -338,6 +353,10 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public TestRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
+            if (o != null && !(o instanceof CharSequence)) {
+                // The HttpClient does not have our object mapper
+                o = mapper.writeValueAsString(o);
+            }
             bldr.setBody(o, contentType);
             return this;
         }
@@ -373,7 +392,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         public CallResult go() {
-            CallResultImpl impl = new CallResultImpl(toURL(), timeout, log);
+            CallResultImpl impl = new CallResultImpl(toURL(), timeout, log, mapper);
             onEvent(impl);
             impl.future = execute();
             return impl;
@@ -409,14 +428,16 @@ public class TestHarness implements ErrorInterceptor {
         private Throwable err;
         private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, CountDownLatch>(StateType.class));
         private final Duration timeout;
+        private final ObjectMapper mapper;
 
-        private CallResultImpl(URL toURL, Duration timeout, boolean log) {
+        private CallResultImpl(URL toURL, Duration timeout, boolean log, ObjectMapper mapper) {
             this.log = log;
             this.url = toURL;
             for (StateType type : StateType.values()) {
                 latches.put(type, new NamedLatch(type.name()));
             }
             this.timeout = timeout;
+            this.mapper = mapper;
         }
 
         private String headersToString(HttpHeaders hdrs) {
@@ -712,7 +733,7 @@ public class TestHarness implements ErrorInterceptor {
                 buf.readBytes(b);
                 return type.cast(new String(b, "UTF-8"));
             } else {
-                ObjectMapper m = new ObjectMapper();
+                ObjectMapper m = mapper;
                 try {
                     return m.readValue(new ByteBufInputStream(buf), type);
                 } catch (JsonParseException | JsonMappingException ex) {
@@ -840,7 +861,7 @@ public class TestHarness implements ErrorInterceptor {
                 return;
             }
             if (this.content.get() != null && log) {
-//                throw new Error("Replace content? Old: " + bufToString(this.content.get()) 
+//                throw new Error("Replace content? Old: " + bufToString(this.content.get())
 //                        + " NEW " + bufToString(content));
                 System.out.println("Replacing old content: " + bufToString(this.content.get()));
             }
@@ -864,6 +885,34 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
             return this;
+        }
+
+        @Override
+        public Cookie getCookie(String cookieName) throws InterruptedException {
+            HttpHeaders headers = getHeaders();
+            for (String cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
+                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
+                if (cookieName.equals(cookie.getName())) {
+                    return cookie;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public String getCookieValue(String cookieName) throws InterruptedException {
+            Cookie cookie = getCookie(cookieName);
+            return cookie == null ? null : cookie.getValue();
+        }
+
+        @Override
+        public CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable {
+            return assertHasHeader(name.name());
+        }
+
+        @Override
+        public HttpResponseStatus status() {
+            return status.get();
         }
     }
 
@@ -901,6 +950,8 @@ public class TestHarness implements ErrorInterceptor {
 
         CallResult assertHasHeader(CharSequence name) throws Throwable;
 
+        CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable;
+
         <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException;
 
         <T> CallResult assertContent(Class<T> type, T compareTo) throws Throwable;
@@ -910,6 +961,12 @@ public class TestHarness implements ErrorInterceptor {
         <T> CallResult assertHasContent() throws Throwable;
 
         <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws Throwable;
+
+        Cookie getCookie(String cookieName) throws Throwable;
+
+        String getCookieValue(String cookieName) throws Throwable;
+        
+        HttpResponseStatus status();
     }
 
     private static class NamedLatch extends CountDownLatch {
@@ -947,10 +1004,11 @@ public class TestHarness implements ErrorInterceptor {
             return name + " (" + getCount() + ")";
         }
     }
-    
+
     private static class Fake implements Server, ServerControl {
+
         private final int port;
-        
+
         Fake(int port) {
             this.port = port;
         }
@@ -992,14 +1050,14 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public void await() throws InterruptedException {
-            synchronized(this) {
+            synchronized (this) {
                 wait();
             }
         }
 
         @Override
         public void awaitUninterruptibly() {
-            synchronized(this) {
+            synchronized (this) {
                 for (;;) {
                     try {
                         wait();

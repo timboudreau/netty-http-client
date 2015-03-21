@@ -245,4 +245,13 @@ public interface HttpRequestBuilder {
     HttpRequestBuilder setCookieStore(CookieStore store);
     
     HttpRequestBuilder setTimeout(Duration timeout);
+    /**
+     * If called, the request builder will not aggregate http chunks,
+     * and the full http response will not be sent to listeners.  Use this
+     * for large uploads where you intend to store the incoming chunks to disk
+     * or some other not-in-ram storage as they arrive.
+     * 
+     * @return this
+     */
+    HttpRequestBuilder dontAggregateResponse();
 }

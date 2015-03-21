@@ -37,10 +37,13 @@ import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
+<<<<<<< HEAD
+=======
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+>>>>>>> master
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.DefaultHttpContent;

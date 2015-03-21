@@ -25,7 +25,6 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.url.URL;
 import io.netty.handler.codec.http.HttpRequest;
-import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,9 +46,10 @@ final class RequestInfo {
     final Duration timeout;
     final DateTime startTime;
     volatile boolean listenerAdded;
-    final TimerTask timer;
+    TimerTask timer;
+    final boolean dontAggregate;
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, TimerTask timer) {
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, TimerTask timer, boolean noAggregate) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
@@ -58,10 +58,11 @@ final class RequestInfo {
         this.timeout = timeout;
         this.startTime = startTime;
         this.timer = timer;
+        this.dontAggregate = noAggregate;
     }
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer) {
-        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer);
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate) {
+        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer, noAggregate);
     }
     
     Duration age() {

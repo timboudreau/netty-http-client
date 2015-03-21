@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2015 tim.
+ * Copyright 2014 tim.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,12 @@ public class CookieStoreTest {
         req.headers().add(Headers.HOST.name(), "foo.com");
         store.decorate(req);
 
+<<<<<<< HEAD
         List<CharSequence> cookieHeaders = req.headers().getAll(Headers.COOKIE.name());
+        System.out.println("COOKIE HEADERS: " + cookieHeaders);
+=======
+        List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE.name());
+>>>>>>> master
         assertEquals(2, cookieHeaders.size());
 
         List<String> find = new LinkedList<>(Arrays.asList("foo", "one"));

@@ -106,7 +106,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     }
 
     void onTimeout(Duration dur) {
-        System.out.println("onTimeout");
+//        System.out.println("onTimeout");
         cancel(dur);
     }
     
@@ -164,6 +164,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 
     @SuppressWarnings("unchecked")
     private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
+    @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {
         Checks.notNull("state", state);
         lastState.set(state.stateType());

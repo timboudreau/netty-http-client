@@ -53,9 +53,15 @@ public abstract class ResponseHandler<T> {
 
     private final Class<T> type;
     private final CountDownLatch latch = new CountDownLatch(1);
+    private ObjectMapper mapper;
+
+    public ResponseHandler(Class<T> type, ObjectMapper mapper) {
+        this.mapper = mapper;
+        this.type = type;
+    }
 
     public ResponseHandler(Class<T> type) {
-        this.type = type;
+        this(type, new ObjectMapper());
     }
 
     public void await() throws InterruptedException {
@@ -85,7 +91,6 @@ public abstract class ResponseHandler<T> {
                 content.readBytes(b);
                 _doReceive(status, headers, type.cast(b));
             } else {
-                ObjectMapper mapper = new ObjectMapper();
                 byte[] b = new byte[content.readableBytes()];
                 content.readBytes(b);
                 try {
