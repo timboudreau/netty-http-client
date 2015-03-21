@@ -34,6 +34,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -191,7 +192,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             if (followRedirects) {
                 String redirUrl = isRedirect(info, state.resp);
                 if (redirUrl != null) {
-                    Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
+                    Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name().toString());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
                     RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate);
@@ -217,8 +218,8 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             }
             state.aggregateContent.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;
-            if (!last && state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH) != null) {
-                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH));
+            if (!last && state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH) != null) {
+                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH).toString());
                 last = state.readableBytes() >= len;
             }
             if (last) {
@@ -258,14 +259,14 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.aggregateContent.readableBytes() > 0) {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.aggregateContent));
-            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.aggregateContent);
+            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.aggregateContent);
             for (Map.Entry<CharSequence, CharSequence> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());
             }
             state.aggregateContent.resetReaderIndex();
 
             if (info.r != null) {
-                info.r.internalReceive(state.resp.getStatus(), state.resp.headers(), state.aggregateContent);
+                info.r.internalReceive(state.resp.status(), state.resp.headers(), state.aggregateContent);
             }
             state.aggregateContent.resetReaderIndex();
             info.handle.event(new State.Finished(full));

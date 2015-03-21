@@ -251,7 +251,7 @@ public final class CookieStore implements Iterable<Cookie> {
                 writeLock.lock();
                 for (CharSequence header : hdrs) {
                     try {
-                        Cookie cookie = Headers.SET_COOKIE.toValue(header);
+                        Cookie cookie = Headers.SET_COOKIE.toValue(header.toString());
                         add(cookie);
                     } catch (Exception e) {
                         if (errorHandler != null) {
@@ -563,6 +563,16 @@ public final class CookieStore implements Iterable<Cookie> {
         @Override
         public int compareTo(Cookie t) {
             return delegate.compareTo(t);
+        }
+
+        @Override
+        public String rawValue() {
+            return delegate.rawValue();
+        }
+
+        @Override
+        public void setRawValue(String rawValue) {
+            delegate.setRawValue(rawValue);
         }
     }
 }

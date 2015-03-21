@@ -682,7 +682,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHeaderNotEquals(HeaderValueType<T> hdr, T value) throws Throwable {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never arrived", h);
-            T obj = hdr.toValue(h.get(hdr.name().toString()));
+            T obj = hdr.toValue(h.get(hdr.name().toString()).toString());
             assertNotEquals(value, obj);
             return this;
         }
@@ -890,9 +890,9 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public Cookie getCookie(String cookieName) throws InterruptedException {
             HttpHeaders headers = getHeaders();
-            for (String cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
-                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
-                if (cookieName.equals(cookie.getName())) {
+            for (CharSequence cookieHeader : headers.getAll(Headers.SET_COOKIE.name().toString())) {
+                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader.toString());
+                if (cookieName.equals(cookie.name().toString())) {
                     return cookie;
                 }
             }
@@ -902,7 +902,7 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public String getCookieValue(String cookieName) throws InterruptedException {
             Cookie cookie = getCookie(cookieName);
-            return cookie == null ? null : cookie.getValue();
+            return cookie == null ? null : cookie.value();
         }
 
         @Override

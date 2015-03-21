@@ -142,8 +142,5 @@ public class HttpClientTest {
                 }
             }
         });
-
-        h.await();
-        Thread.sleep(500);
     }
 }

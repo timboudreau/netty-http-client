@@ -39,27 +39,25 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
-import java.io.IOException;
 import java.net.ConnectException;
-import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -381,7 +379,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.protocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
-        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout);
+        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout, info.dontAggregate);
     }
 
     private Bootstrap bootstrap;
