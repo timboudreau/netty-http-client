@@ -562,9 +562,68 @@ public final class CookieStore implements Iterable<Cookie> {
             delegate.setPorts(ports);
         }
 
-        @Override
         public int compareTo(Cookie t) {
             return delegate.compareTo(t);
+        }
+
+        @Override
+        public Set<Integer> ports() {
+            return delegate.ports();
+        }
+
+        @Override
+        public String comment() {
+            return delegate.comment();
+        }
+
+        @Override
+        public long maxAge() {
+            return delegate.maxAge();
+        }
+
+        @Override
+        public int version() {
+            return delegate.version();
+        }
+
+        @Override
+        public String commentUrl() {
+            return delegate.commentUrl();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public String value() {
+            return delegate.value();
+        }
+
+        @Override
+        public boolean wrap() {
+            return delegate.wrap();
+        }
+
+        @Override
+        public void setWrap(boolean bln) {
+            delegate.setWrap(bln);
+        }
+
+        @Override
+        public String domain() {
+            return delegate.domain();
+        }
+
+        @Override
+        public String path() {
+            return delegate.path();
+        }
+
+        @Override
+        public int compareTo(io.netty.handler.codec.http.cookie.Cookie o) {
+            return delegate.compareTo(o);
         }
     }
 }

@@ -10,6 +10,7 @@ import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
+import static com.mastfrog.acteur.headers.Headers.SET_COOKIE_B;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.acteur.util.ServerControl;
@@ -55,9 +56,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
 import io.netty.handler.codec.http.Cookie;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
-import java.util.LinkedList;
 import java.util.List;
 import static org.junit.Assert.fail;
 
@@ -690,13 +691,17 @@ public class TestHarness implements ErrorInterceptor {
         public <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
             List<String> all = h.getAll(hdr.name());
-            List<T> result = new LinkedList<>();
+            List<T> result = null;
             if (all != null) {
+                result = new ArrayList<>(all.size());
                 for (String s : all) {
-                    result.add(hdr.toValue(s));
+                    T obj = hdr.toValue(s);
+                    result.add(obj);
+                    System.out.println("HEADER " + hdr.name() + ": " + s + " --> " + obj);
                 }
             }
-            return result;
+            System.out.println("HEADERS RESULT: " + result);
+            return result == null ? Collections.EMPTY_SET : result;
         }
 
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
@@ -869,19 +874,19 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         public CallResult assertHasCookie(String name) throws Throwable {
-            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
-                if (name.equals(ck.getName())) {
+            for (io.netty.handler.codec.http.cookie.Cookie ck : getHeaders(SET_COOKIE_B)) {
+                if (name.equals(ck.name())) {
                     return this;
                 }
             }
-            fail("No cookie named '" + name + "' in " + getHeaders(Headers.SET_COOKIE));
+            fail("No cookie named '" + name + "' in " + getHeaders(Headers.SET_COOKIE_B));
             return this;
         }
 
         public CallResult assertCookieValue(String name, String val) throws Throwable {
-            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
-                if (name.equals(ck.getName())) {
-                    assertEquals(val, ck.getValue());
+            for (io.netty.handler.codec.http.cookie.Cookie ck : getHeaders(Headers.SET_COOKIE_B)) {
+                if (name.equals(ck.name())) {
+                    assertEquals(val, ck.value());
                 }
             }
             return this;
@@ -892,12 +897,29 @@ public class TestHarness implements ErrorInterceptor {
             HttpHeaders headers = getHeaders();
             for (String cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
                 Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
-                if (cookieName.equals(cookie.getName())) {
+                if (cookie != null) {
+                    if (cookieName.equals(cookie.getName())) {
+                        return cookie;
+                    }
+                } else {
+                    System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
+                }
+            }
+            return null;
+        }
+        
+        @Override
+        public io.netty.handler.codec.http.cookie.Cookie getCookieB(String cookieName) throws InterruptedException {
+            HttpHeaders headers = getHeaders();
+            for (String cookieHeader : headers.getAll(Headers.SET_COOKIE_B.name())) {
+                io.netty.handler.codec.http.cookie.Cookie cookie = Headers.SET_COOKIE_B.toValue(cookieHeader);
+                if (cookieName.equals(cookie.name())) {
                     return cookie;
                 }
             }
             return null;
         }
+        
 
         @Override
         public String getCookieValue(String cookieName) throws InterruptedException {
@@ -933,6 +955,8 @@ public class TestHarness implements ErrorInterceptor {
         CallResult assertStatus(HttpResponseStatus status) throws Throwable;
 
         CallResult throwIfError() throws Throwable;
+        
+        io.netty.handler.codec.http.cookie.Cookie getCookieB(String cookieName) throws InterruptedException;
 
         <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable;
 

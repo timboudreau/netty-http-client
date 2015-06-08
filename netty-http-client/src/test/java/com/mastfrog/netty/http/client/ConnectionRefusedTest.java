@@ -116,6 +116,7 @@ public class ConnectionRefusedTest {
                     }
                 }).await(1, TimeUnit.SECONDS);
         latch.await(20, TimeUnit.SECONDS);
+        Thread.sleep(5000);
         assertTrue(notified.get());
     }
 }
