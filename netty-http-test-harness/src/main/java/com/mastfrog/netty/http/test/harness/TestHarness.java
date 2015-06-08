@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.fail;
 
 /**
@@ -78,6 +79,10 @@ public class TestHarness implements ErrorInterceptor {
     private final HttpClient client;
     private final int port;
     private final ObjectMapper mapper;
+
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client) throws IOException {
+        this(server, settings, reg, client, new ObjectMapper());
+    }
 
     @Inject
     public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
@@ -462,13 +467,19 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         private final Thread mainThread = Thread.currentThread();
+        private AtomicBoolean timedOut = new AtomicBoolean();
+        private CountDownLatch timeoutWait = new CountDownLatch(1);
 
         public void run() {
             try {
                 Thread.sleep(timeout.getMillis());
+                timedOut.set(true);
+                timeoutWait.countDown();
                 if (!states.contains(StateType.Closed)) {
-                    System.out.println("Cancelling request for timeout "
-                            + timeout + " " + url.getPathAndQuery());
+                    if (log) {
+                        System.out.println("Cancelling request for timeout "
+                                + timeout + " " + url.getPathAndQuery());
+                    }
                     if (future != null) {
                         future.cancel();
                     }
@@ -507,6 +518,10 @@ public class TestHarness implements ErrorInterceptor {
                         System.out.println("SENT REQUEST " + headersToString(sr.get().headers()));
                     }
                     break;
+                case Timeout:
+                    if (log) {
+                        System.out.println("TIMEOUT.");
+                    }
                 case Closed:
                     for (CountDownLatch latch : latches.values()) {
                         latch.countDown();
@@ -612,9 +627,19 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         @Override
+        public CallResult assertTimedOut() throws Throwable {
+            timeoutWait.await(timeout.getMillis() * 2, TimeUnit.MILLISECONDS);
+            assertTrue("Did not time out", timedOut.get());
+            return this;
+        }
+
+        @Override
         public CallResult assertStatus(HttpResponseStatus status) throws Throwable {
             await(HeadersReceived);
             if (HttpResponseStatus.CONTINUE != status && HttpResponseStatus.CONTINUE.equals(this.getStatus()) || getStatus() == null) {
+                if (states.contains(StateType.Timeout)) {
+                    throw new AssertionError("Timed out");
+                }
                 await(Closed);
             }
             assertNotNull("Status never sent, expected " + status, this.getStatus());
@@ -697,11 +722,9 @@ public class TestHarness implements ErrorInterceptor {
                 for (String s : all) {
                     T obj = hdr.toValue(s);
                     result.add(obj);
-                    System.out.println("HEADER " + hdr.name() + ": " + s + " --> " + obj);
                 }
             }
-            System.out.println("HEADERS RESULT: " + result);
-            return result == null ? Collections.EMPTY_SET : result;
+            return result == null ? Collections.<T>emptySet() : result;
         }
 
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
@@ -902,12 +925,14 @@ public class TestHarness implements ErrorInterceptor {
                         return cookie;
                     }
                 } else {
-                    System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
+                    if (log) {
+                        System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
+                    }
                 }
             }
             return null;
         }
-        
+
         @Override
         public io.netty.handler.codec.http.cookie.Cookie getCookieB(String cookieName) throws InterruptedException {
             HttpHeaders headers = getHeaders();
@@ -919,7 +944,6 @@ public class TestHarness implements ErrorInterceptor {
             }
             return null;
         }
-        
 
         @Override
         public String getCookieValue(String cookieName) throws InterruptedException {
@@ -955,8 +979,10 @@ public class TestHarness implements ErrorInterceptor {
         CallResult assertStatus(HttpResponseStatus status) throws Throwable;
 
         CallResult throwIfError() throws Throwable;
-        
+
         io.netty.handler.codec.http.cookie.Cookie getCookieB(String cookieName) throws InterruptedException;
+
+        CallResult assertTimedOut() throws Throwable;
 
         <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable;
 
@@ -989,7 +1015,7 @@ public class TestHarness implements ErrorInterceptor {
         Cookie getCookie(String cookieName) throws Throwable;
 
         String getCookieValue(String cookieName) throws Throwable;
-        
+
         HttpResponseStatus status();
     }
 

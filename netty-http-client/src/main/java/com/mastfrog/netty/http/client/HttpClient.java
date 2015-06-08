@@ -306,7 +306,7 @@ public final class HttpClient {
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             bootstrap.option(ChannelOption.SO_REUSEADDR, false);
             if (timeout != null) {
-                bootstrap.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
+                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
             }
             for (ChannelOptionSetting<?> setting : settings) {
                 option(bootstrap, setting);
@@ -326,7 +326,7 @@ public final class HttpClient {
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             if (timeout != null) {
-                bootstrapSsl.option(ChannelOption.SO_TIMEOUT, (int) timeout.getMillis());
+                bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
             }
             for (ChannelOptionSetting<?> setting : settings) {
                 option(bootstrapSsl, setting);
@@ -376,7 +376,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
-        submit(url, nue, new AtomicBoolean(), info.handle, info.r, info, info.timeout, info.dontAggregate);
+        submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate);
     }
 
     private Bootstrap bootstrap;

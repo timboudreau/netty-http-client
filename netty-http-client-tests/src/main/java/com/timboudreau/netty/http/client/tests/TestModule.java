@@ -33,6 +33,7 @@ import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.preconditions.Methods;
 import com.mastfrog.acteur.preconditions.Path;
+import com.mastfrog.acteur.server.PathFactory;
 import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
@@ -45,9 +46,13 @@ import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
 import io.netty.handler.codec.http.LastHttpContent;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import javax.inject.Inject;
+import org.joda.time.Duration;
 
 /**
  * A test application
@@ -66,6 +71,9 @@ public class TestModule extends ServerModule<App> {
             add(OkPage.class);
             add(CookiePage.class);
             add(IncrementalPage.class);
+            add(RedirectPage.class);
+            add(RedirectPage2.class);
+            add(RedirectDest.class);
         }
     }
 
@@ -160,6 +168,67 @@ public class TestModule extends ServerModule<App> {
             ByteBuf buf = f.channel().alloc().buffer(50);
             ByteBufUtil.writeAscii(buf, "This is call " + count);
             f.channel().writeAndFlush(new DefaultHttpContent(buf)).addListener(this);
+        }
+    }
+
+    @Methods(Method.GET)
+    @Path("/redir")
+    static class RedirectPage extends Page {
+        RedirectPage() {
+            add(DelayActeur.class);
+            add(RedirActeur.class);
+        }
+    }
+
+    @Methods(Method.GET)
+    @Path("/redir2")
+    static class RedirectPage2 extends Page {
+
+        RedirectPage2() {
+            add(DelayActeur.class);
+            add(RedirActeur2.class);
+        }
+    }
+
+    @Methods(Method.GET)
+    @Path("/redirDone")
+    static class RedirectDest extends Page {
+
+        RedirectDest() {
+            add(FinalResponseActeur.class);
+        }
+    }
+
+    static class DelayActeur extends Acteur {
+
+        DelayActeur() {
+            response().setDelay(Duration.standardSeconds(1));
+            next();
+        }
+    }
+
+    static class RedirActeur extends Acteur {
+
+        @Inject
+        RedirActeur(PathFactory pf) throws URISyntaxException {
+            add(Headers.LOCATION, new URI("/redir2"));
+            reply(FOUND);
+        }
+    }
+
+    static class RedirActeur2 extends Acteur {
+
+        @Inject
+        RedirActeur2(PathFactory pf) throws URISyntaxException {
+            add(Headers.LOCATION, new URI("/redirDone"));
+            reply(FOUND);
+        }
+    }
+
+    static class FinalResponseActeur extends Acteur {
+
+        FinalResponseActeur() {
+            ok("Got it\n");
         }
     }
 
