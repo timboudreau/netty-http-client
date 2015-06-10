@@ -28,7 +28,7 @@ import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.netty.pool.NullChannelPool;
-import com.mastfrog.netty.pool.ReturnOnCloseChannelPool;
+import com.mastfrog.netty.pool.ReleaseOnCloseChannelPool;
 import com.mastfrog.netty.pool.hacks.ChannelPoolChannelInitializer;
 import com.mastfrog.netty.pool.hacks.HackFixedChannelPool;
 import com.mastfrog.netty.pool.hacks.HackSimpleChannelPool;
@@ -263,10 +263,10 @@ public final class HttpClient {
                     return new NullChannelPool(init, bootstrap, this);
                 case -1:
                     System.out.println("USE SIMPLE CHANNEL POOL");
-                    return new ReturnOnCloseChannelPool(new HackSimpleChannelPool(bootstrap, this, init));
+                    return new ReleaseOnCloseChannelPool(new HackSimpleChannelPool(bootstrap, this, init));
                 default:
                     System.out.println("USE FIXED CHANNEL POOL");
-                    return new ReturnOnCloseChannelPool(new HackFixedChannelPool(bootstrap, this, connectionPoolSize, init));
+                    return new ReleaseOnCloseChannelPool(new HackFixedChannelPool(bootstrap, this, connectionPoolSize, init));
             }
         }
 

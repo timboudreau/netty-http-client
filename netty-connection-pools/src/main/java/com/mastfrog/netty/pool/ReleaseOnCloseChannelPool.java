@@ -42,12 +42,12 @@ import java.util.concurrent.TimeoutException;
  *
  * @author Tim Boudreau
  */
-public class ReturnOnCloseChannelPool implements ChannelPool {
+public class ReleaseOnCloseChannelPool implements ChannelPool {
 
     private final ChannelPool delegate;
     private final CloseAction onClose = new OnCloseImpl();
 
-    public ReturnOnCloseChannelPool(ChannelPool delegate) {
+    public ReleaseOnCloseChannelPool(ChannelPool delegate) {
         this.delegate = delegate;
     }
 
