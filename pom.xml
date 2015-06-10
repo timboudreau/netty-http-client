@@ -14,5 +14,6 @@
         <module>netty-http-client</module>
         <module>netty-http-test-harness</module>
         <module>netty-http-client-tests</module>
+        <module>netty-connection-pools</module>
     </modules>
 </project>

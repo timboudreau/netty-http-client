@@ -48,7 +48,7 @@ import static org.junit.Assert.*;
  */
 public class CookieStoreTest {
 
-    @Test
+    @Test(timeout = 5000)
     public void test() throws IOException {
         assertTrue(true);
         CookieStore store = new CookieStore();

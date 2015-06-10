@@ -24,6 +24,8 @@
 package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -52,6 +54,8 @@ public final class HttpClientBuilder {
     private Duration timeout;
     private final List<TrustManager> managers = new LinkedList<>();
     private SSLContext sslContext;
+    private int poolSize = 0;
+    private ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
 
     public HttpClientBuilder setSslContext(SSLContext ctx) {
         this.sslContext = ctx;
@@ -190,7 +194,56 @@ public final class HttpClientBuilder {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, settings, send100continue,
-                cookies, timeout, sslContext, managers.toArray(new TrustManager[0]));
+                cookies, timeout, sslContext, poolSize, allocator, managers.toArray(new TrustManager[0]));
+    }
+
+    /**
+     * The default - don't use a connection pool.
+     * 
+     * @return this
+     */
+    public HttpClientBuilder dontUseConnectionPool() {
+        poolSize = 0;
+        return this;
+    }
+
+    /**
+     * Use a connection pool that allows unlimited connections to a single
+     * host, and will reuse them.
+     * 
+     * @return this
+     */
+    public HttpClientBuilder useUnlimitedConnectionPool() {
+        poolSize = -1;
+        return this;
+    }
+
+    /**
+     * Set the per-host connection pool size.  This limits the number
+     * of connections the HttpClient will hold open <b>per-host</b> (there
+     * is no global limit).
+     * 
+     * @param poolSize The size of the pool - must be > 0.
+     * @return this
+     */
+    public HttpClientBuilder setConnectionPoolSize(int poolSize) {
+        Checks.nonZero("poolSize", poolSize);
+        Checks.nonNegative("poolSize", poolSize);
+        this.poolSize = poolSize;
+        return this;
+    }
+    
+    /**
+     * Set the ByteBufAllocator that allocates memory for responses.
+     * The default is currently PooledByteBufAllocator.DEFAULT.
+     * 
+     * @param allocator The allocator
+     * @return This
+     */
+    public HttpClientBuilder setAllocator(ByteBufAllocator allocator) {
+        Checks.notNull("allocator", allocator);
+        this.allocator = allocator;
+        return this;
     }
 
     /**
@@ -257,7 +310,7 @@ public final class HttpClientBuilder {
      *
      * @param <T> A type
      */
-    protected static class ChannelOptionSetting<T> {
+    public static class ChannelOptionSetting<T> {
 
         private final ChannelOption<T> option;
         private final T value;

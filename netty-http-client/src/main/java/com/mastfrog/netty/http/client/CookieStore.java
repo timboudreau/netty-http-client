@@ -24,9 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.Headers;
-import com.mastfrog.url.Host;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;

@@ -29,6 +29,7 @@ import com.mastfrog.acteur.util.BasicCredentials;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
+import com.mastfrog.acteur.util.Connection;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.url.URLBuilder;
@@ -68,9 +69,10 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     private final ByteBufAllocator alloc;
     protected boolean noAggregate;
 
-    RequestBuilder(Method method, ByteBufAllocator alloc) {
+    RequestBuilder(Method method, ByteBufAllocator alloc, boolean noConnectionHeader) {
         this.method = method;
         this.alloc = alloc;
+        this.noConnectionHeader = noConnectionHeader;
     }
 
     @Override
@@ -165,7 +167,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     }
 
     private boolean noConnectionHeader;
-
+    
     public RequestBuilder noConnectionHeader() {
         noConnectionHeader = true;
         return this;
@@ -212,8 +214,11 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         if (!noHostHeader) {
             h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
         }
-        if (!h.headers().contains(HttpHeaders.Names.CONNECTION) && !noConnectionHeader) {
-            h.headers().add(HttpHeaders.Names.CONNECTION, "close");
+        boolean hasConnectionHeader = h.headers().contains(HttpHeaders.Names.CONNECTION);
+        if (!noConnectionHeader && !hasConnectionHeader) {
+            h.headers().add(HttpHeaders.Names.CONNECTION, Connection.close.toString());
+        } else if (!hasConnectionHeader) {
+            h.headers().add(HttpHeaders.Names.CONNECTION, Connection.keep_alive.toString());
         }
         if (!noDateHeader) {
             h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));

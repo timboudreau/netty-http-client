@@ -23,6 +23,7 @@ import com.mastfrog.netty.http.client.ResponseHandler;
 import com.mastfrog.netty.http.client.State;
 import com.mastfrog.netty.http.client.StateType;
 import static com.mastfrog.netty.http.client.StateType.Closed;
+import static com.mastfrog.netty.http.client.StateType.ContentReceived;
 import static com.mastfrog.netty.http.client.StateType.FullContentReceived;
 import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.settings.Settings;
@@ -571,13 +572,7 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public CallResult assertCode(int code) throws Throwable {
-            await(HeadersReceived);
-//            if (code != 100 && HttpResponseStatus.CONTINUE.equals(getStatus())) {
-            await(Closed);
-//            }
-            assertNotNull("Status is null, not " + code, getStatus());
-            assertEquals(code, getStatus().code());
-            return this;
+            return assertStatus(HttpResponseStatus.valueOf(code));
         }
 
         private String contentAsString() throws UnsupportedEncodingException {
@@ -585,7 +580,6 @@ public class TestHarness implements ErrorInterceptor {
             if (buf == null) {
                 return null;
             }
-//            assertNotNull(buf);
             if (!buf.isReadable()) {
                 return null;
             }
@@ -618,7 +612,6 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult assertContent(String expected) throws Throwable {
             await(FullContentReceived);
-            await(Closed);
             String s = contentAsString();
             assertNotNull("Content buffer not readable", s);
             assertFalse("0 bytes content", s.isEmpty());
@@ -636,16 +629,34 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult assertStatus(HttpResponseStatus status) throws Throwable {
             await(HeadersReceived);
-            if (HttpResponseStatus.CONTINUE != status && HttpResponseStatus.CONTINUE.equals(this.getStatus()) || getStatus() == null) {
+            if (HttpResponseStatus.CONTINUE != status) {
+                while (HttpResponseStatus.CONTINUE.equals(getStatus())) {
+                    if (states.contains(StateType.Timeout)) {
+                        throw new AssertionError("Timed out");
+                    }
+                    if (states.contains(StateType.Cancelled)) {
+                        throw new AssertionError("Cancelled");
+                    }
+                    this.latches.put(HeadersReceived, new NamedLatch(HeadersReceived.name()));
+                    if (getStatus() == null) {
+                        await(HeadersReceived);
+                    }
+                }
+            }
+            if (getStatus() == null) {
                 if (states.contains(StateType.Timeout)) {
                     throw new AssertionError("Timed out");
                 }
-                await(Closed);
+                if (states.contains(StateType.Cancelled)) {
+                    throw new AssertionError("Cancelled");
+                }
+                System.out.println("AWAIT HEADERS RECEIVED AGAIN - states " + states);
+                await(HeadersReceived);
             }
-            assertNotNull("Status never sent, expected " + status, this.getStatus());
-            HttpResponseStatus st = this.getStatus();
-            if (!status.equals(st)) {
-                throw new AssertionError("Expected " + status + " got " + st + ": " + content());
+            HttpResponseStatus actualStatus = getStatus();
+            assertNotNull("Status never sent, expected " + status, actualStatus);
+            if (!status.equals(actualStatus)) {
+                throw new AssertionError("Expected " + status + " got " + actualStatus + ": " + content());
             }
             return this;
         }
@@ -694,12 +705,12 @@ public class TestHarness implements ErrorInterceptor {
             await(HeadersReceived);
             HttpHeaders h = getHeaders();
             if (h == null) {
-                await(Closed);
+                await(ContentReceived);
                 h = getHeaders();
             } else {
                 String s = h.get(lookingFor);
                 if (s == null) {
-                    await(Closed);
+                    await(ContentReceived);
                 }
             }
             return h;
@@ -739,7 +750,7 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public CallResult await() throws Throwable {
-            await(Closed);
+            await(FullContentReceived);
             return this;
         }
 
@@ -812,7 +823,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHasContent() throws Throwable {
             await(FullContentReceived);
             if (getContent() == null) {
-                await(Closed);
+                await(FullContentReceived);
             }
             assertNotNull("No content received", getContent());
             return this;
@@ -924,10 +935,8 @@ public class TestHarness implements ErrorInterceptor {
                     if (cookieName.equals(cookie.getName())) {
                         return cookie;
                     }
-                } else {
-                    if (log) {
-                        System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
-                    }
+                } else if (log) {
+                    System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
                 }
             }
             return null;

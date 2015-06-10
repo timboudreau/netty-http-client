@@ -27,6 +27,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
+import com.mastfrog.netty.pool.NullChannelPool;
+import com.mastfrog.netty.pool.ReturnOnCloseChannelPool;
+import com.mastfrog.netty.pool.hacks.ChannelPoolChannelInitializer;
+import com.mastfrog.netty.pool.hacks.HackFixedChannelPool;
+import com.mastfrog.netty.pool.hacks.HackSimpleChannelPool;
+import com.mastfrog.netty.pool.multi.ChannelPoolFactory;
+import com.mastfrog.netty.pool.multi.HostPortSsl;
+import com.mastfrog.netty.pool.multi.MultiHostChannelPool;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
@@ -41,6 +49,8 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.pool.ChannelPool;
+import io.netty.channel.pool.ChannelPoolHandler;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
@@ -51,6 +61,10 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.concurrent.DefaultPromise;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.Promise;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.nio.channels.SocketChannel;
@@ -151,11 +165,19 @@ public final class HttpClient {
     private final CookieStore cookies;
     private final Duration timeout;
     private final SSLContext sslContext;
+    private final ByteBufAllocator allocator;
     private final TrustManager[] managers;
     private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
+    private final int connectionPoolSize;
+    private final MultiHostChannelPool connectionPools;
+    private final MessageHandlerImpl handler;
 
+    /**
+     * Creates an HTTP client with some reasonable defaults. Use
+     * <code>HttpClient.builder()</code> to customize.
+     */
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null, 0, PooledByteBufAllocator.DEFAULT);
     }
 
     /**
@@ -163,6 +185,10 @@ public final class HttpClient {
      * that is much simpler. HttpClientBuilder will remain backward compatible;
      * this constructor may be changed if new parameters are needed (all state
      * of an HTTP client is immutable and must be passed to the constructor).
+     * <p>
+     * The constructor arguments may be incompatibly changed to add features;
+     * for a stable API, use <code>HttpClient.builder()</code>
+     * </p>
      *
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
@@ -183,6 +209,10 @@ public final class HttpClient {
      * @param timeout Maximum time a connection will be open; may be null to
      * keep open indefinitely.
      * @param sslContext Ssl context for secure connections. May be null.
+     * @param connectionPoolSize - 0 for unlimited size, -1 for don't use a
+     * connection pool, otherwise a number of connections <b>per host</b> that
+     * should be maintained
+     * @param allocator
      * @param managers Trust managers for secure connections. May be empty for
      * default trust manager.
      */
@@ -190,7 +220,11 @@ public final class HttpClient {
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout, SSLContext sslContext, TrustManager... managers) {
+            CookieStore cookies, Duration timeout, SSLContext sslContext,
+            int connectionPoolSize, ByteBufAllocator allocator,
+            TrustManager... managers) {
+        Checks.nonNegative("threads", threads);
+        Checks.nonNegative("maxChunkSize", maxChunkSize);
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -206,8 +240,50 @@ public final class HttpClient {
         this.cookies = cookies;
         this.timeout = timeout;
         this.sslContext = sslContext;
+        this.connectionPoolSize = connectionPoolSize;
+        if (connectionPoolSize < -1) {
+            throw new IllegalArgumentException("Invalid connection pool size: " + connectionPoolSize);
+        }
+        this.allocator = allocator;
         this.managers = new TrustManager[managers.length];
         System.arraycopy(managers, 0, this.managers, 0, managers.length);
+        handler = new MessageHandlerImpl(followRedirects, this);
+        connectionPools = new MultiHostChannelPool(new Pools());
+    }
+
+    private class Pools extends ChannelPoolFactory implements ChannelPoolHandler {
+
+        @Override
+        public ChannelPool newPool(HostPortSsl host) {
+            Bootstrap bootstrap = host.ssl() ? startSsl() : start();
+            ChannelPoolChannelInitializer init = new ChannelPoolChannelInitializer.HostPortPoolChannelInitializer(host.host().toString(), host.port().intValue());
+            switch (connectionPoolSize) {
+                case 0:
+                    System.out.println("USE NULL CHANNEL POOL");
+                    return new NullChannelPool(init, bootstrap, this);
+                case -1:
+                    System.out.println("USE SIMPLE CHANNEL POOL");
+                    return new ReturnOnCloseChannelPool(new HackSimpleChannelPool(bootstrap, this, init));
+                default:
+                    System.out.println("USE FIXED CHANNEL POOL");
+                    return new ReturnOnCloseChannelPool(new HackFixedChannelPool(bootstrap, this, connectionPoolSize, init));
+            }
+        }
+
+        @Override
+        public void channelReleased(Channel ch) throws Exception {
+            System.out.println("Pool channel released " + ch.remoteAddress());
+        }
+
+        @Override
+        public void channelAcquired(Channel ch) throws Exception {
+            System.out.println("Pool channel acquired " + ch.remoteAddress());
+        }
+
+        @Override
+        public void channelCreated(Channel ch) throws Exception {
+            System.out.println("Pool channel created " + ch.remoteAddress());
+        }
     }
 
     private static class TF implements ThreadFactory {
@@ -300,10 +376,10 @@ public final class HttpClient {
             bootstrap = new Bootstrap();
             bootstrap.group(group);
             bootstrap.handler(new Initializer(
-                    new MessageHandlerImpl(followRedirects, this), sslContext, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
+                    handler, sslContext, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
             );
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
-            bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            bootstrap.option(ChannelOption.ALLOCATOR, allocator);
             bootstrap.option(ChannelOption.SO_REUSEADDR, false);
             if (timeout != null) {
                 bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
@@ -321,10 +397,10 @@ public final class HttpClient {
         if (bootstrapSsl == null) {
             bootstrapSsl = new Bootstrap();
             bootstrapSsl.group(group);
-            bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress, managers));
+            bootstrapSsl.handler(new Initializer(handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress, managers));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
-            bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
+            bootstrapSsl.option(ChannelOption.ALLOCATOR, allocator);
             if (timeout != null) {
                 bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
             }
@@ -341,13 +417,16 @@ public final class HttpClient {
      */
     @SuppressWarnings("deprecation")
     public void shutdown() {
-        if (group != null) {
-            group.shutdownGracefully(0, 10, TimeUnit.SECONDS);
-            if (!group.isTerminated()) {
-                group.shutdownNow();
+        try {
+            if (group != null) {
+                group.shutdownGracefully(0, 10, TimeUnit.SECONDS);
+                if (!group.isTerminated()) {
+                    group.shutdownNow();
+                }
             }
+        } finally {
+            timer.cancel();
         }
-        timer.cancel();
     }
 
     void copyHeaders(HttpRequest from, HttpRequest to) {
@@ -447,6 +526,7 @@ public final class HttpClient {
     }
 
     private static class NoStackTimeoutException extends TimeoutException {
+
         // Minor optimization - creating the stack trace is expensive if
         // the stack is deep
         NoStackTimeoutException(String msg) {
@@ -457,7 +537,7 @@ public final class HttpClient {
         public StackTraceElement[] getStackTrace() {
             return new StackTraceElement[0];
         }
-        
+
         @Override
         public synchronized Throwable fillInStackTrace() {
             return this;
@@ -478,6 +558,7 @@ public final class HttpClient {
             }
             final HttpRequest req = rq;
             Bootstrap bootstrap;
+            HostPortSsl hostKey = new HostPortSsl(url.getHostAndPort(), url.getProtocol().isSecure());
             if (url.getProtocol().isSecure()) {
                 bootstrap = startSsl();
             } else {
@@ -502,61 +583,102 @@ public final class HttpClient {
             handle.event(new State.Connecting());
             //XXX who is escaping this?
             req.setUri(req.getUri().replaceAll("%5f", "_"));
-            ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
-            if (tt != null) {
-                fut.channel().closeFuture().addListener(tt);
-            }
-            fut.channel().attr(KEY).set(info);
-            handle.setFuture(fut);
-            if (!monitors.isEmpty()) {
-                for (ActivityMonitor m : monitors) {
-                    m.onStartRequest(url);
-                }
-                fut.channel().closeFuture().addListener(new AdapterCloseNotifier(url));
-            }
-
-            fut.addListener(new ChannelFutureListener() {
+            final TimeoutTimerTask ft = tt;
+            final RequestInfo requestInfo = info;
+            System.out.println("Acquire from pool " + hostKey);
+            Future<Channel> poolAcquire = connectionPools.acquire(hostKey, new DefaultPromise<Channel>() {
 
                 @Override
-                public void operationComplete(ChannelFuture future) throws Exception {
+                public boolean trySuccess(Channel channel) {
+                    System.out.println("trySuccess");
+                    System.out.println("POOL SET CHANNEL TO " + channel.getClass().getName());
+                    channel.attr(KEY).set(requestInfo);
+                    return super.trySuccess(channel);
+                }
+
+                @Override
+                public Promise<Channel> setSuccess(Channel channel) {
+                    System.out.println("setSuccess");
+                    channel.attr(KEY).set(requestInfo);
+                    return super.setSuccess(channel);
+                }
+
+            });
+            poolAcquire.addListener(new GenericFutureListener<Future< Channel>>() {
+
+                @Override
+                public void operationComplete(Future<Channel> future) throws Exception {
+                    System.out.println("PoolAcquire complete " + future.isSuccess() + " FUTURE " + future.getClass().getName());
                     if (!future.isSuccess()) {
                         Throwable cause = future.cause();
                         if (cause == null) {
-                            cause = new ConnectException(url.getHost().toString());
+                            cause = new ConnectException(url.getHostAndPort().toString());
                         }
                         handle.event(new State.Error(cause));
                         if (r != null) {
                             r.onError(cause);
                         }
                         cancelled.set(true);
-                    }
-                    if (cancelled.get()) {
-                        future.cancel(true);
-                        if (future.channel().isOpen()) {
-                            future.channel().close();
-                        }
-                        for (ActivityMonitor m : monitors) {
-                            m.onEndRequest(url);
-                        }
                         return;
                     }
-                    handle.event(new State.Connected(future.channel()));
-                    handle.event(new State.SendRequest(req));
-                    future = future.channel().writeAndFlush(req);
-                    future.addListener(new ChannelFutureListener() {
+                    Channel channel = future.getNow();
+                    System.out.println("INITIAL CHANNEL " + channel.getClass().getName() + " from " + future);
+                    if (ft != null) {
+                        channel.closeFuture().addListener(ft);
+                    }
+                    channel.attr(KEY).set(requestInfo);
+                    handle.setFuture(future);
+                    if (!monitors.isEmpty()) {
+                        for (ActivityMonitor m : monitors) {
+                            m.onStartRequest(url);
+                        }
+                        channel.closeFuture().addListener(new AdapterCloseNotifier(url));
+                    }
+
+                    future.addListener(new GenericFutureListener<Future<Channel>>() {
 
                         @Override
-                        public void operationComplete(ChannelFuture future) throws Exception {
+                        public void operationComplete(Future<Channel> future) throws Exception {
+                            if (!future.isSuccess()) {
+                                Throwable cause = future.cause();
+                                if (cause == null) {
+                                    cause = new ConnectException(url.getHost().toString());
+                                }
+                                handle.event(new State.Error(cause));
+                                if (r != null) {
+                                    r.onError(cause);
+                                }
+                                cancelled.set(true);
+                            }
+                            Channel channel = future.getNow();
                             if (cancelled.get()) {
                                 future.cancel(true);
-                                future.channel().close();
+                                if (channel != null && channel.isOpen()) {
+                                    channel.close();
+                                }
+                                for (ActivityMonitor m : monitors) {
+                                    m.onEndRequest(url);
+                                }
+                                return;
                             }
-                            handle.event(new State.AwaitingResponse());
-                        }
+                            handle.event(new State.Connected(channel));
+                            handle.event(new State.SendRequest(req));
+                            ChannelFuture fut = channel.writeAndFlush(req);
+                            fut.addListener(new ChannelFutureListener() {
 
+                                @Override
+                                public void operationComplete(ChannelFuture future) throws Exception {
+                                    System.out.println("Request flushed");
+                                    if (cancelled.get()) {
+                                        future.cancel(true);
+                                        future.channel().close();
+                                    }
+                                    handle.event(new State.AwaitingResponse());
+                                }
+                            });
+                        }
                     });
                 }
-
             });
         } catch (Exception ex) {
             Exceptions.chuck(ex);
@@ -565,6 +687,7 @@ public final class HttpClient {
 
     private static final class NioChannelFactory implements ChannelFactory {
 
+        @Override
         public Channel newChannel() {
             try {
                 return new NioSocketChannel(SocketChannel.open());
@@ -591,7 +714,7 @@ public final class HttpClient {
             store.extract(headerContainer.headers());
         }
     }
-    
+
     private ByteBufAllocator alloc() {
         for (ChannelOptionSetting<?> setting : this.settings) {
             if (setting.option().equals(ChannelOption.ALLOCATOR)) {
@@ -604,7 +727,7 @@ public final class HttpClient {
     private final class RB extends RequestBuilder {
 
         RB(Method method) {
-            super(method, alloc());
+            super(method, alloc(), HttpClient.this.connectionPoolSize != 0);
             this.send100Continue = HttpClient.this.send100continue;
         }
 

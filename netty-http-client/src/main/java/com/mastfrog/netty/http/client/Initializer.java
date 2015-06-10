@@ -36,10 +36,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactorySpi;
 
-/**
- *
- * @author tim
- */
 final class Initializer extends ChannelInitializer<Channel> {
 
     private final ChannelInboundHandlerAdapter handler;

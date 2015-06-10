@@ -60,7 +60,6 @@ public class TestModuleTest {
 
     @Test
     public void test(TestHarness harn) throws Throwable {
-        assertTrue(true);
         CookieStore store = new CookieStore();
         CallResult res = harn.get("/ok").setCookieStore(store).go().assertStatus(OK);
         res.assertHasHeader(Headers.SET_COOKIE.name());

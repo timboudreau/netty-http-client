@@ -35,6 +35,7 @@ import com.mastfrog.acteur.preconditions.Methods;
 import com.mastfrog.acteur.preconditions.Path;
 import com.mastfrog.acteur.server.PathFactory;
 import com.mastfrog.acteur.server.ServerModule;
+import com.mastfrog.acteur.util.Connection;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
@@ -221,6 +222,7 @@ public class TestModule extends ServerModule<App> {
         @Inject
         RedirActeur2(PathFactory pf) throws URISyntaxException {
             add(Headers.LOCATION, new URI("/redirDone"));
+            add(Headers.CONNECTION, Connection.keep_alive);
             reply(FOUND);
         }
     }

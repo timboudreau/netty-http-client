@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -46,8 +46,8 @@ import static org.junit.Assert.*;
  * @author tim
  */
 public class HttpClientTest {
-    
-    @Test
+
+    @Test(timeout=2000)
     public void testPost() throws Exception {
         if (true) return;
         HttpClient client = HttpClient.builder().followRedirects().build();
@@ -72,7 +72,7 @@ public class HttpClientTest {
         }).execute();
         f.await(5, TimeUnit.SECONDS);
     }
-    
+
     private static class AM implements ActivityMonitor {
         final List<String> started = Lists.newCopyOnWriteArrayList();
         final List<String> ended = Lists.newCopyOnWriteArrayList();
@@ -88,12 +88,12 @@ public class HttpClientTest {
             System.out.println("AM END: " + url);
             ended.add(url.toString());
         }
-        
+
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void test() throws Exception {
-//        if (true) return;
+        if (true) return;
         HttpClient client = HttpClient.builder().build();
         final CookieStore store = new CookieStore();
 //        ResponseFuture h = client.get()setCookieStore(store).setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class) {
@@ -102,7 +102,9 @@ public class HttpClientTest {
 //        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://www.google.com")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("http://hp.timboudreau.org/blog/latest/read")).execute(new ResponseHandler<String>(String.class){
-        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class){
+//        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("https://www.google.com/")).execute(new ResponseHandler<String>(String.class){
+        ResponseFuture h = client.get().setCookieStore(store).setURL("http://timboudreau.com/files/INTRNET2.TXT").execute(new ResponseHandler<String>(String.class){
+//        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class){
 
             @Override
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
@@ -123,7 +125,7 @@ public class HttpClientTest {
 
         h.onAnyEvent(new Receiver<State<?>>() {
             Set<StateType> seen = new HashSet<>();
-            
+
             @Override
             public void receive(State<?> state) {
                 System.out.println("STATE " + state);

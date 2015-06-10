@@ -24,6 +24,12 @@
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
+            <artifactId>netty-connection-pools</artifactId>
+            <type>jar</type>
+            <version>${mastfrog.version}</version>
+        </dependency>        
+        <dependency>
+            <groupId>com.mastfrog</groupId>
             <artifactId>giulius-tests</artifactId>
             <scope>test</scope>
             <type>jar</type>

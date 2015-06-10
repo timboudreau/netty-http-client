@@ -272,5 +272,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             state.aggregateContent.resetReaderIndex();
             info.handle.trigger();
         }
+        ctx.channel().close();
     }
 }

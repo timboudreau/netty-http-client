@@ -7,3 +7,4 @@
 /netty-http-client/target/
 /netty-http-test-harness/target/
 /netty-http-client-tests/target/
+/netty-connection-pools/target/
