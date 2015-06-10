@@ -99,7 +99,7 @@ public class ReleaseOnCloseChannelPool implements ChannelPool {
         }
     }
 
-    private class WrapChannelFuture implements Future<Channel> {
+    final class WrapChannelFuture implements Future<Channel> {
 
         private final Future<Channel> delegate;
         private final ListenerSupport<? extends Channel> listeners = new ListenerSupport<>();
@@ -254,9 +254,8 @@ public class ReleaseOnCloseChannelPool implements ChannelPool {
 
         @Override
         public Channel get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-            return delegate.get(timeout, unit);
+            delegate.get(timeout, unit);
+            return wrapped();
         }
-
     }
-
 }
