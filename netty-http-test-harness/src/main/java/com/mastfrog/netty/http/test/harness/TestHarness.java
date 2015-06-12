@@ -22,8 +22,11 @@ import com.mastfrog.netty.http.client.ResponseFuture;
 import com.mastfrog.netty.http.client.ResponseHandler;
 import com.mastfrog.netty.http.client.State;
 import com.mastfrog.netty.http.client.StateType;
+import static com.mastfrog.netty.http.client.StateType.Cancelled;
 import static com.mastfrog.netty.http.client.StateType.Closed;
 import static com.mastfrog.netty.http.client.StateType.ContentReceived;
+import static com.mastfrog.netty.http.client.StateType.Error;
+import static com.mastfrog.netty.http.client.StateType.Finished;
 import static com.mastfrog.netty.http.client.StateType.FullContentReceived;
 import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.settings.Settings;
@@ -62,6 +65,7 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.fail;
 
 /**
@@ -433,7 +437,7 @@ public class TestHarness implements ErrorInterceptor {
         private final AtomicReference<ByteBuf> content = new AtomicReference<>();
         private volatile ResponseFuture future;
         private Throwable err;
-        private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, CountDownLatch>(StateType.class));
+        private final Map<StateType, NamedLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, NamedLatch>(StateType.class));
         private final Duration timeout;
         private final ObjectMapper mapper;
 
@@ -443,8 +447,37 @@ public class TestHarness implements ErrorInterceptor {
             for (StateType type : StateType.values()) {
                 latches.put(type, new NamedLatch(type.name()));
             }
+            // Ensure latches are triggered if an event that logically comes after their event is triggered,
+            // or on cancel or failure
+            setupDependencies();
+
             this.timeout = timeout;
             this.mapper = mapper;
+        }
+
+        private void setupDependencies() {
+            depend(Closed, HeadersReceived, ContentReceived, FullContentReceived);
+            depend(ContentReceived, HeadersReceived);
+            depend(FullContentReceived, HeadersReceived, ContentReceived);
+            depend(Finished, HeadersReceived, ContentReceived, FullContentReceived, Closed);
+            depend(Cancelled, StateType.values());
+            depend(Error, StateType.values());
+            depend(FullContentReceived, HeadersReceived, ContentReceived);
+        }
+
+        private void depend(StateType trigger, StateType... types) {
+            NamedLatch triggerLatch = latches.get(trigger);
+            triggerLatch.others = latchesFor(trigger, types);
+        }
+
+        private NamedLatch[] latchesFor(StateType exclude, StateType... types) {
+            List<NamedLatch> result = new ArrayList<>();
+            for (StateType type : types) {
+                if (type != exclude) {
+                    result.add(latches.get(type));
+                }
+            }
+            return result.toArray(new NamedLatch[result.size()]);
         }
 
         private String headersToString(HttpHeaders hdrs) {
@@ -507,11 +540,13 @@ public class TestHarness implements ErrorInterceptor {
             boolean updateState = true;
             switch (state.stateType()) {
                 case Connected:
-                    Thread t = new Thread(this);
-                    t.setDaemon(true);
-                    t.setName("Timeout thread for " + url.getPathAndQuery());
-                    t.setPriority(Thread.NORM_PRIORITY - 1);
-                    t.start();
+                    if (timeout.getMillis() != Long.MAX_VALUE) {
+                        Thread t = new Thread(this);
+                        t.setDaemon(true);
+                        t.setName("Timeout thread for " + url.getPathAndQuery());
+                        t.setPriority(Thread.NORM_PRIORITY - 1);
+                        t.start();
+                    }
                     break;
                 case SendRequest:
                     State.SendRequest sr = (State.SendRequest) state;
@@ -524,9 +559,6 @@ public class TestHarness implements ErrorInterceptor {
                         System.out.println("TIMEOUT.");
                     }
                 case Closed:
-                    for (CountDownLatch latch : latches.values()) {
-                        latch.countDown();
-                    }
                     break;
                 case Finished:
                 case HeadersReceived:
@@ -556,7 +588,7 @@ public class TestHarness implements ErrorInterceptor {
             await(latches.get(state));
         }
 
-        void await(CountDownLatch latch) throws InterruptedException {
+        void await(ResettableCountDownLatch latch) throws InterruptedException {
             if (log) {
                 System.out.println("WAIT ON " + latch);
             }
@@ -629,7 +661,10 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult assertStatus(HttpResponseStatus status) throws Throwable {
             await(HeadersReceived);
-            if (HttpResponseStatus.CONTINUE != status) {
+            // Handle the case that the status is temporarily 100-CONTINUE - unless
+            // we're asserting that that is the status, we want to wait until we get
+            // the real response status, after the payload is sent
+            if (!HttpResponseStatus.CONTINUE.equals(status)) {
                 while (HttpResponseStatus.CONTINUE.equals(getStatus())) {
                     if (states.contains(StateType.Timeout)) {
                         throw new AssertionError("Timed out");
@@ -637,9 +672,12 @@ public class TestHarness implements ErrorInterceptor {
                     if (states.contains(StateType.Cancelled)) {
                         throw new AssertionError("Cancelled");
                     }
-                    this.latches.put(HeadersReceived, new NamedLatch(HeadersReceived.name()));
-                    if (getStatus() == null) {
+                    HttpResponseStatus currStatus = getStatus();
+                    if (currStatus == null || HttpResponseStatus.CONTINUE.equals(currStatus)) {
+                        latches.get(HeadersReceived).reset();
                         await(HeadersReceived);
+                    } else if (!HttpResponseStatus.CONTINUE.equals(currStatus)) {
+                        break;
                     }
                 }
             }
@@ -1028,19 +1066,43 @@ public class TestHarness implements ErrorInterceptor {
         HttpResponseStatus status();
     }
 
-    private static class NamedLatch extends CountDownLatch {
+    private static class NamedLatch extends ResettableCountDownLatch {
 
+        private ThreadLocal<Boolean> inCountDown = new ThreadLocal<>();
         private final String name;
+        NamedLatch[] others;
 
-        public NamedLatch(String name) {
+        public NamedLatch(String name, NamedLatch... others) {
             super(1);
             this.name = name;
+            this.others = others;
+        }
+
+        @Override
+        public void countDown() {
+            Boolean alreadyInCountDown = inCountDown.get();
+            if (Boolean.TRUE.equals(alreadyInCountDown)) {
+                return;
+            }
+            inCountDown.set(true);
+            try {
+                super.countDown();
+                for (ResettableCountDownLatch latch : others) {
+                    if (latch != this) {
+                        System.out.println("Resent " + latch + " for " + this);
+                        latch.countDown();
+                    }
+                }
+            } finally {
+                inCountDown.set(false);
+            }
         }
 
         @Override
         public void await() throws InterruptedException {
             String old = Thread.currentThread().getName();
-            Thread.currentThread().setName("Waiting " + this + " (was " + old + ")");
+            String threadName = "Waiting " + this + " (was " + old + ")";
+            Thread.currentThread().setName(threadName);
             try {
                 super.await();
             } finally {
@@ -1051,7 +1113,8 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public boolean await(long l, TimeUnit tu) throws InterruptedException {
             String old = Thread.currentThread().getName();
-            Thread.currentThread().setName("Waiting " + this + " (was " + old + ")");
+            String threadName = "Waiting " + this + " (was " + old + ")";
+            Thread.currentThread().setName(threadName);
             try {
                 return super.await(l, tu);
             } finally {
@@ -1062,6 +1125,53 @@ public class TestHarness implements ErrorInterceptor {
         public String toString() {
             return name + " (" + getCount() + ")";
         }
+    }
+
+    static class ResettableCountDownLatch {
+
+        private final AtomicInteger count = new AtomicInteger(1);
+        private final Object lock = new Object();
+        private final int initialValue;
+
+        ResettableCountDownLatch(int count) {
+            this.count.set(count);
+            initialValue = count;
+        }
+
+        public void countDown() {
+            int value = count.decrementAndGet();
+            if (value == 0) {
+                synchronized (lock) {
+                    lock.notifyAll();
+                }
+            }
+        }
+
+        public int getCount() {
+            return count.get();
+        }
+
+        public void reset() {
+            count.set(initialValue);
+        }
+
+        public void await() throws InterruptedException {
+            while (getCount() > 0) {
+                synchronized (lock) {
+                    lock.wait();
+                }
+            }
+        }
+
+        public boolean await(long l, TimeUnit tu) throws InterruptedException {
+            if (getCount() > 0) {
+                synchronized (lock) {
+                    lock.wait(TimeUnit.MILLISECONDS.convert(l, tu));
+                }
+            }
+            return true;
+        }
+
     }
 
     private static class Fake implements Server, ServerControl {
