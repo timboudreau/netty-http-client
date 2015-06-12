@@ -25,10 +25,10 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
 import io.netty.channel.ChannelOption;
+import io.netty.handler.ssl.SslContext;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
@@ -50,16 +50,21 @@ public final class HttpClientBuilder {
     private boolean send100continue = true;
     private CookieStore cookies;
     private Duration timeout;
-    private final List<TrustManager> managers = new LinkedList<>();
-    private SSLContext sslContext;
+    private SslContext sslContext;
 
-    public HttpClientBuilder setSslContext(SSLContext ctx) {
+    public HttpClientBuilder setSslContext(SslContext ctx) {
         this.sslContext = ctx;
         return this;
     }
 
+    /**
+     * Add A trust manager for SSL connections.
+     * @param mgr a trust manager
+     * @return this
+     * @deprecated Does nothing as of 1.6.1.3-dev / Netty 4.0.28
+     */
+    @Deprecated
     public HttpClientBuilder addTrustManager(TrustManager mgr) {
-        this.managers.add(mgr);
         return this;
     }
 
@@ -190,7 +195,7 @@ public final class HttpClientBuilder {
         return new HttpClient(compression, maxChunkSize, threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, settings, send100continue,
-                cookies, timeout, sslContext, managers.toArray(new TrustManager[0]));
+                cookies, timeout, sslContext);
     }
 
     /**

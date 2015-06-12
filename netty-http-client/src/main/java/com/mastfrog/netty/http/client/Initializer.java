@@ -23,37 +23,37 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.mastfrog.url.HostAndPort;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.ssl.SslHandler;
-import java.security.SecureRandom;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactorySpi;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 /**
  *
- * @author tim
+ * @author Tim Boudreau
  */
 final class Initializer extends ChannelInitializer<Channel> {
 
+    private final HostAndPort hostPort;
+
     private final ChannelInboundHandlerAdapter handler;
-    private final SSLContext context;
-    private final TrivialTrustManagerFactory trustManagers;
+    private final SslContext context;
     private final boolean ssl;
     private final int maxChunkSize;
     private final int maxInitialLineLength;
     private final boolean compress;
 
-    public Initializer(ChannelInboundHandlerAdapter handler, SSLContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, TrustManager... managers) {
+    public Initializer(HostAndPort hostPort, ChannelInboundHandlerAdapter handler, SslContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
+        this.hostPort = hostPort;
         this.handler = handler;
-        this.context = context == null ? SecureChatSslContextFactory.getClientContext() : context;
-        this.trustManagers = new TrivialTrustManagerFactory(managers);
+        this.context = context;
         this.ssl = ssl;
         this.maxChunkSize = maxChunkSize;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -64,12 +64,9 @@ final class Initializer extends ChannelInitializer<Channel> {
     protected void initChannel(Channel ch) throws Exception {
         ChannelPipeline pipeline = ch.pipeline();
         if (ssl) {
-            SSLContext clientContext = SSLContext.getInstance("TLS");
-            clientContext.init(null, trustManagers.engineGetTrustManagers(), new SecureRandom());
-            SSLEngine engine = context.createSSLEngine();
-
-            engine.setUseClientMode(true);
-            pipeline.addLast("ssl", new SslHandler(engine));
+            SslContext clientContext = context == null ? SslContextBuilder.forClient()
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE).build() : context;
+            pipeline.addLast("ssl", clientContext.newHandler(ByteBufAllocator.DEFAULT, hostPort.host(), hostPort.port()));
         }
         pipeline.addLast("http-codec", new HttpClientCodec(maxInitialLineLength, maxChunkSize, maxChunkSize));
         if (compress) {

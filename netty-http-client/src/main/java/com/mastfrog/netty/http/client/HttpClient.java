@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2013-2015 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
+import com.mastfrog.url.HostAndPort;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
@@ -49,6 +50,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.ssl.SslContext;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import java.io.IOException;
@@ -65,7 +67,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -150,9 +151,9 @@ public final class HttpClient {
     private final boolean send100continue;
     private final CookieStore cookies;
     private final Duration timeout;
-    private final SSLContext sslContext;
-    private final TrustManager[] managers;
     private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
+    private final SslBootstrapCache sslBootstraps;
+    private final MessageHandlerImpl handler;
 
     public HttpClient() {
         this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null);
@@ -190,7 +191,7 @@ public final class HttpClient {
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout, SSLContext sslContext, TrustManager... managers) {
+            CookieStore cookies, Duration timeout, SslContext sslContext) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -205,9 +206,8 @@ public final class HttpClient {
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
-        this.sslContext = sslContext;
-        this.managers = new TrustManager[managers.length];
-        System.arraycopy(managers, 0, this.managers, 0, managers.length);
+        this.handler = new MessageHandlerImpl(followRedirects, this);
+        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler, this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress, this.settings);
     }
 
     private static class TF implements ThreadFactory {
@@ -290,17 +290,17 @@ public final class HttpClient {
         return new RB(Method.OPTIONS);
     }
 
-    private <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
+    static <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
         bootstrap.option(setting.option(), setting.value());
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Bootstrap start() {
+    private synchronized Bootstrap start(HostAndPort hostAndPort) {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
             bootstrap.group(group);
-            bootstrap.handler(new Initializer(
-                    new MessageHandlerImpl(followRedirects, this), sslContext, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
+            bootstrap.handler(new Initializer(hostAndPort,
+                    handler, null, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
             );
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
@@ -317,23 +317,8 @@ public final class HttpClient {
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Bootstrap startSsl() {
-        if (bootstrapSsl == null) {
-            bootstrapSsl = new Bootstrap();
-            bootstrapSsl.group(group);
-            bootstrapSsl.handler(new Initializer(new MessageHandlerImpl(followRedirects, this), sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress, managers));
-            bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
-            bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
-            bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-            if (timeout != null) {
-                bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
-            }
-            for (ChannelOptionSetting<?> setting : settings) {
-                option(bootstrapSsl, setting);
-            }
-            bootstrapSsl.channelFactory(new NioChannelFactory());
-        }
-        return bootstrapSsl;
+    private synchronized Bootstrap startSsl(HostAndPort hostAndPort) {
+        return sslBootstraps.sslBootstrap(hostAndPort);
     }
 
     /**
@@ -380,7 +365,6 @@ public final class HttpClient {
     }
 
     private Bootstrap bootstrap;
-    private Bootstrap bootstrapSsl;
 
     static final AttributeKey<RequestInfo> KEY = AttributeKey.<RequestInfo>valueOf("info");
 
@@ -479,9 +463,9 @@ public final class HttpClient {
             final HttpRequest req = rq;
             Bootstrap bootstrap;
             if (url.getProtocol().isSecure()) {
-                bootstrap = startSsl();
+                bootstrap = startSsl(url.getHostAndPort());
             } else {
-                bootstrap = start();
+                bootstrap = start(url.getHostAndPort());
             }
             if (!url.isValid()) {
                 throw new IllegalArgumentException(url.getProblems() + "");
@@ -563,9 +547,9 @@ public final class HttpClient {
         }
     }
 
-    private static final class NioChannelFactory implements ChannelFactory {
+    static final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
 
-        public Channel newChannel() {
+        public NioSocketChannel newChannel() {
             try {
                 return new NioSocketChannel(SocketChannel.open());
             } catch (IOException ioe) {
