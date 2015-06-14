@@ -23,9 +23,7 @@
  */
 package com.mastfrog.netty.http.client;
 
-import static com.mastfrog.netty.http.client.HttpClient.KEY;
 import com.mastfrog.url.HostAndPort;
-import com.sun.nio.sctp.MessageInfo;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -38,8 +36,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.util.Attribute;
-import io.netty.util.AttributeKey;
 import javax.net.ssl.SSLEngine;
 
 /**
@@ -74,7 +70,6 @@ final class Initializer extends ChannelInitializer<Channel> {
             SslContext clientContext = context == null ? SslContextBuilder.forClient()
                     .trustManager(InsecureTrustManagerFactory.INSTANCE).build() : context;
             pipeline.addLast("ssl", new ExceptionForwardingSslHandler(clientContext.newEngine(ByteBufAllocator.DEFAULT, hostPort.host(), hostPort.port())));
-//            pipeline.addLast("ssl", clientContext.newHandler(ByteBufAllocator.DEFAULT, hostPort.host(), hostPort.port()));
         }
         pipeline.addLast("http-codec", new HttpClientCodec(maxInitialLineLength, maxChunkSize, maxChunkSize));
         if (compress) {
