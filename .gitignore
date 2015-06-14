@@ -4,7 +4,9 @@
 *.jar
 *.war
 *.ear
+*.orig
 /netty-http-client/target/
 /netty-http-test-harness/target/
 /netty-http-client-tests/target/
+/netty-http-client/nbproject/
 /netty-connection-pools/target/

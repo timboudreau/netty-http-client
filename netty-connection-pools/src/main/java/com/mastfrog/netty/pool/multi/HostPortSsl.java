@@ -54,6 +54,10 @@ public final class HostPortSsl {
     public boolean ssl() {
         return ssl;
     }
+    
+    public HostAndPort hostAndPort() {
+        return hostPort;
+    }
 
     @Override
     public String toString() {

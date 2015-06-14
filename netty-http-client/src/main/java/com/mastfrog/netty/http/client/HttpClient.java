@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2013-2015 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ import com.mastfrog.netty.pool.hacks.HackSimpleChannelPool;
 import com.mastfrog.netty.pool.multi.ChannelPoolFactory;
 import com.mastfrog.netty.pool.multi.HostPortSsl;
 import com.mastfrog.netty.pool.multi.MultiHostChannelPool;
+import com.mastfrog.url.HostAndPort;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
@@ -59,6 +60,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.ssl.SslContext;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import io.netty.util.concurrent.DefaultPromise;
@@ -78,8 +80,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -164,13 +164,12 @@ public final class HttpClient {
     private final boolean send100continue;
     private final CookieStore cookies;
     private final Duration timeout;
-    private final SSLContext sslContext;
-    private final ByteBufAllocator allocator;
-    private final TrustManager[] managers;
     private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
+    private final SslBootstrapCache sslBootstraps;
     private final int connectionPoolSize;
     private final MultiHostChannelPool connectionPools;
     private final MessageHandlerImpl handler;
+    private final ByteBufAllocator allocator;
 
     /**
      * Creates an HTTP client with some reasonable defaults. Use
@@ -185,10 +184,6 @@ public final class HttpClient {
      * that is much simpler. HttpClientBuilder will remain backward compatible;
      * this constructor may be changed if new parameters are needed (all state
      * of an HTTP client is immutable and must be passed to the constructor).
-     * <p>
-     * The constructor arguments may be incompatibly changed to add features;
-     * for a stable API, use <code>HttpClient.builder()</code>
-     * </p>
      *
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
@@ -220,11 +215,8 @@ public final class HttpClient {
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout, SSLContext sslContext,
-            int connectionPoolSize, ByteBufAllocator allocator,
-            TrustManager... managers) {
-        Checks.nonNegative("threads", threads);
-        Checks.nonNegative("maxChunkSize", maxChunkSize);
+            CookieStore cookies, Duration timeout, SslContext sslContext,
+            int connectionPoolSize, ByteBufAllocator allocator) {
         group = new NioEventLoopGroup(threads, new TF());
         this.compress = compress;
         this.maxInitialLineLength = maxInitialLineLength;
@@ -239,15 +231,13 @@ public final class HttpClient {
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
-        this.sslContext = sslContext;
+        this.handler = new MessageHandlerImpl(followRedirects, this);
+        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler, this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress, this.settings);
         this.connectionPoolSize = connectionPoolSize;
         if (connectionPoolSize < -1) {
             throw new IllegalArgumentException("Invalid connection pool size: " + connectionPoolSize);
         }
         this.allocator = allocator;
-        this.managers = new TrustManager[managers.length];
-        System.arraycopy(managers, 0, this.managers, 0, managers.length);
-        handler = new MessageHandlerImpl(followRedirects, this);
         connectionPools = new MultiHostChannelPool(new Pools());
     }
 
@@ -255,7 +245,7 @@ public final class HttpClient {
 
         @Override
         public ChannelPool newPool(HostPortSsl host) {
-            Bootstrap bootstrap = host.ssl() ? startSsl() : start();
+            Bootstrap bootstrap = host.ssl() ? startSsl(host.hostAndPort()) : start(host.hostAndPort());
             ChannelPoolChannelInitializer init = new ChannelPoolChannelInitializer.HostPortPoolChannelInitializer(host.host().toString(), host.port().intValue());
             switch (connectionPoolSize) {
                 case 0:
@@ -366,17 +356,17 @@ public final class HttpClient {
         return new RB(Method.OPTIONS);
     }
 
-    private <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
+    static <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
         bootstrap.option(setting.option(), setting.value());
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Bootstrap start() {
+    private synchronized Bootstrap start(HostAndPort hostAndPort) {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
             bootstrap.group(group);
-            bootstrap.handler(new Initializer(
-                    handler, sslContext, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
+            bootstrap.handler(new Initializer(hostAndPort,
+                    handler, null, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
             );
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, allocator);
@@ -393,23 +383,8 @@ public final class HttpClient {
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Bootstrap startSsl() {
-        if (bootstrapSsl == null) {
-            bootstrapSsl = new Bootstrap();
-            bootstrapSsl.group(group);
-            bootstrapSsl.handler(new Initializer(handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress, managers));
-            bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
-            bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
-            bootstrapSsl.option(ChannelOption.ALLOCATOR, allocator);
-            if (timeout != null) {
-                bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
-            }
-            for (ChannelOptionSetting<?> setting : settings) {
-                option(bootstrapSsl, setting);
-            }
-            bootstrapSsl.channelFactory(new NioChannelFactory());
-        }
-        return bootstrapSsl;
+    private synchronized Bootstrap startSsl(HostAndPort hostAndPort) {
+        return sslBootstraps.sslBootstrap(hostAndPort);
     }
 
     /**
@@ -418,15 +393,15 @@ public final class HttpClient {
     @SuppressWarnings("deprecation")
     public void shutdown() {
         try {
-            if (group != null) {
-                group.shutdownGracefully(0, 10, TimeUnit.SECONDS);
-                if (!group.isTerminated()) {
-                    group.shutdownNow();
-                }
+        if (group != null) {
+            group.shutdownGracefully(0, 10, TimeUnit.SECONDS);
+            if (!group.isTerminated()) {
+                group.shutdownNow();
             }
-        } finally {
-            timer.cancel();
         }
+        } finally {
+        timer.cancel();
+    }
     }
 
     void copyHeaders(HttpRequest from, HttpRequest to) {
@@ -459,7 +434,6 @@ public final class HttpClient {
     }
 
     private Bootstrap bootstrap;
-    private Bootstrap bootstrapSsl;
 
     static final AttributeKey<RequestInfo> KEY = AttributeKey.<RequestInfo>valueOf("info");
 
@@ -537,7 +511,7 @@ public final class HttpClient {
         public StackTraceElement[] getStackTrace() {
             return new StackTraceElement[0];
         }
-
+        
         @Override
         public synchronized Throwable fillInStackTrace() {
             return this;
@@ -560,9 +534,9 @@ public final class HttpClient {
             Bootstrap bootstrap;
             HostPortSsl hostKey = new HostPortSsl(url.getHostAndPort(), url.getProtocol().isSecure());
             if (url.getProtocol().isSecure()) {
-                bootstrap = startSsl();
+                bootstrap = startSsl(hostKey.hostAndPort());
             } else {
-                bootstrap = start();
+                bootstrap = start(hostKey.hostAndPort());
             }
             if (!url.isValid()) {
                 throw new IllegalArgumentException(url.getProblems() + "");
@@ -594,7 +568,7 @@ public final class HttpClient {
                     System.out.println("POOL SET CHANNEL TO " + channel.getClass().getName());
                     channel.attr(KEY).set(requestInfo);
                     return super.trySuccess(channel);
-                }
+            }
 
                 @Override
                 public Promise<Channel> setSuccess(Channel channel) {
@@ -628,55 +602,55 @@ public final class HttpClient {
                     }
                     channel.attr(KEY).set(requestInfo);
                     handle.setFuture(future);
-                    if (!monitors.isEmpty()) {
-                        for (ActivityMonitor m : monitors) {
-                            m.onStartRequest(url);
-                        }
+            if (!monitors.isEmpty()) {
+                for (ActivityMonitor m : monitors) {
+                    m.onStartRequest(url);
+                }
                         channel.closeFuture().addListener(new AdapterCloseNotifier(url));
-                    }
+            }
 
                     future.addListener(new GenericFutureListener<Future<Channel>>() {
 
-                        @Override
+                @Override
                         public void operationComplete(Future<Channel> future) throws Exception {
-                            if (!future.isSuccess()) {
-                                Throwable cause = future.cause();
-                                if (cause == null) {
-                                    cause = new ConnectException(url.getHost().toString());
-                                }
-                                handle.event(new State.Error(cause));
-                                if (r != null) {
-                                    r.onError(cause);
-                                }
-                                cancelled.set(true);
-                            }
+                    if (!future.isSuccess()) {
+                        Throwable cause = future.cause();
+                        if (cause == null) {
+                            cause = new ConnectException(url.getHost().toString());
+                        }
+                        handle.event(new State.Error(cause));
+                        if (r != null) {
+                            r.onError(cause);
+                        }
+                        cancelled.set(true);
+                    }
                             Channel channel = future.getNow();
-                            if (cancelled.get()) {
-                                future.cancel(true);
+                    if (cancelled.get()) {
+                        future.cancel(true);
                                 if (channel != null && channel.isOpen()) {
                                     channel.close();
-                                }
-                                for (ActivityMonitor m : monitors) {
-                                    m.onEndRequest(url);
-                                }
-                                return;
-                            }
+                        }
+                        for (ActivityMonitor m : monitors) {
+                            m.onEndRequest(url);
+                        }
+                        return;
+                    }
                             handle.event(new State.Connected(channel));
-                            handle.event(new State.SendRequest(req));
+                    handle.event(new State.SendRequest(req));
                             ChannelFuture fut = channel.writeAndFlush(req);
                             fut.addListener(new ChannelFutureListener() {
 
-                                @Override
-                                public void operationComplete(ChannelFuture future) throws Exception {
-                                    System.out.println("Request flushed");
-                                    if (cancelled.get()) {
-                                        future.cancel(true);
-                                        future.channel().close();
-                                    }
-                                    handle.event(new State.AwaitingResponse());
-                                }
-                            });
+                        @Override
+                        public void operationComplete(ChannelFuture future) throws Exception {
+                            if (cancelled.get()) {
+                                future.cancel(true);
+                                future.channel().close();
+                            }
+                            handle.event(new State.AwaitingResponse());
                         }
+
+                    });
+                }
                     });
                 }
             });
@@ -685,10 +659,9 @@ public final class HttpClient {
         }
     }
 
-    private static final class NioChannelFactory implements ChannelFactory {
+    static final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
 
-        @Override
-        public Channel newChannel() {
+        public NioSocketChannel newChannel() {
             try {
                 return new NioSocketChannel(SocketChannel.open());
             } catch (IOException ioe) {
@@ -714,7 +687,7 @@ public final class HttpClient {
             store.extract(headerContainer.headers());
         }
     }
-
+    
     private ByteBufAllocator alloc() {
         for (ChannelOptionSetting<?> setting : this.settings) {
             if (setting.option().equals(ChannelOption.ALLOCATOR)) {
