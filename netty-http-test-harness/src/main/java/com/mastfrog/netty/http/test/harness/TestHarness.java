@@ -618,7 +618,7 @@ public class TestHarness implements ErrorInterceptor {
                 return null;
             }
             buf.resetReaderIndex();
-            byte[] b = new byte[getContent().readableBytes()];
+            byte[] b = new byte[buf.readableBytes()];
             buf.readBytes(b);
             buf.resetReaderIndex();
             return new String(b, "UTF-8");
