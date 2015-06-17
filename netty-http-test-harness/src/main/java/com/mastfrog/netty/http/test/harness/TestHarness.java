@@ -456,10 +456,10 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         private void setupDependencies() {
-            depend(Closed, HeadersReceived, ContentReceived, FullContentReceived);
+            depend(Closed, HeadersReceived, ContentReceived, FullContentReceived, Error);
             depend(ContentReceived, HeadersReceived);
-            depend(FullContentReceived, HeadersReceived, ContentReceived);
-            depend(Finished, HeadersReceived, ContentReceived, FullContentReceived, Closed);
+            depend(FullContentReceived, HeadersReceived, ContentReceived, Error);
+            depend(Finished, HeadersReceived, ContentReceived, FullContentReceived, Closed, Error);
             depend(Cancelled, StateType.values());
             depend(Error, StateType.values());
             depend(FullContentReceived, HeadersReceived, ContentReceived);
@@ -536,7 +536,6 @@ public class TestHarness implements ErrorInterceptor {
                 System.out.println(url.getPathAndQuery() + " - " + state.name() + " - " + state.get());
             }
             states.add(state.stateType());
-            latches.get(state.stateType()).countDown();
             boolean updateState = true;
             switch (state.stateType()) {
                 case Connected:
@@ -585,6 +584,9 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         void await(StateType state) throws InterruptedException {
+            if (states.contains(state)) {
+                return;
+            }
             await(latches.get(state));
         }
 
@@ -616,7 +618,7 @@ public class TestHarness implements ErrorInterceptor {
                 return null;
             }
             buf.resetReaderIndex();
-            byte[] b = new byte[getContent().readableBytes()];
+            byte[] b = new byte[buf.readableBytes()];
             buf.readBytes(b);
             buf.resetReaderIndex();
             return new String(b, "UTF-8");
@@ -635,7 +637,7 @@ public class TestHarness implements ErrorInterceptor {
         public CallResult assertContentContains(String expected) throws Throwable {
             await(FullContentReceived);
             String s = contentAsString();
-            assertNotNull("Content buffer not readable", s);
+            assertNotNull("Content buffer not readable - expected '" + expected + "'", s);
             assertFalse("0 bytes content", s.isEmpty());
             assertTrue("Content does not contain '" + expected + "'", s.contains(expected));
             return this;
@@ -645,7 +647,7 @@ public class TestHarness implements ErrorInterceptor {
         public CallResult assertContent(String expected) throws Throwable {
             await(FullContentReceived);
             String s = contentAsString();
-            assertNotNull("Content buffer not readable", s);
+            assertNotNull("Content buffer not readable - expected '" + expected + "'", s);
             assertFalse("0 bytes content", s.isEmpty());
             assertEquals(expected, s);
             return this;
@@ -976,7 +978,6 @@ public class TestHarness implements ErrorInterceptor {
                 } else if (log) {
                     System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
                 }
-            }
             return null;
         }
 
@@ -1089,7 +1090,6 @@ public class TestHarness implements ErrorInterceptor {
                 super.countDown();
                 for (ResettableCountDownLatch latch : others) {
                     if (latch != this) {
-                        System.out.println("Resent " + latch + " for " + this);
                         latch.countDown();
                     }
                 }
@@ -1125,53 +1125,6 @@ public class TestHarness implements ErrorInterceptor {
         public String toString() {
             return name + " (" + getCount() + ")";
         }
-    }
-
-    static class ResettableCountDownLatch {
-
-        private final AtomicInteger count = new AtomicInteger(1);
-        private final Object lock = new Object();
-        private final int initialValue;
-
-        ResettableCountDownLatch(int count) {
-            this.count.set(count);
-            initialValue = count;
-        }
-
-        public void countDown() {
-            int value = count.decrementAndGet();
-            if (value == 0) {
-                synchronized (lock) {
-                    lock.notifyAll();
-                }
-            }
-        }
-
-        public int getCount() {
-            return count.get();
-        }
-
-        public void reset() {
-            count.set(initialValue);
-        }
-
-        public void await() throws InterruptedException {
-            while (getCount() > 0) {
-                synchronized (lock) {
-                    lock.wait();
-                }
-            }
-        }
-
-        public boolean await(long l, TimeUnit tu) throws InterruptedException {
-            if (getCount() > 0) {
-                synchronized (lock) {
-                    lock.wait(TimeUnit.MILLISECONDS.convert(l, tu));
-                }
-            }
-            return true;
-        }
-
     }
 
     private static class Fake implements Server, ServerControl {

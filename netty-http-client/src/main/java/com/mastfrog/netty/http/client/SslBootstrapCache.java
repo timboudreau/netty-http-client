@@ -87,7 +87,6 @@ final class SslBootstrapCache {
 
         @Override
         public Bootstrap load(HostAndPort k) throws Exception {
-            System.out.println("Create a bootstrap for " + k);
             Bootstrap bootstrapSsl = new Bootstrap();
             bootstrapSsl.group(group);
             bootstrapSsl.handler(new Initializer(k, handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
