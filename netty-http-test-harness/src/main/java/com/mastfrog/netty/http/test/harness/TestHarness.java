@@ -10,6 +10,7 @@ import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
+import static com.mastfrog.acteur.headers.Headers.SET_COOKIE;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.acteur.util.ServerControl;
@@ -21,7 +22,11 @@ import com.mastfrog.netty.http.client.ResponseFuture;
 import com.mastfrog.netty.http.client.ResponseHandler;
 import com.mastfrog.netty.http.client.State;
 import com.mastfrog.netty.http.client.StateType;
+import static com.mastfrog.netty.http.client.StateType.Cancelled;
 import static com.mastfrog.netty.http.client.StateType.Closed;
+import static com.mastfrog.netty.http.client.StateType.ContentReceived;
+import static com.mastfrog.netty.http.client.StateType.Error;
+import static com.mastfrog.netty.http.client.StateType.Finished;
 import static com.mastfrog.netty.http.client.StateType.FullContentReceived;
 import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.settings.Settings;
@@ -54,11 +59,13 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
-import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.cookie.Cookie;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.fail;
 
 /**
@@ -77,6 +84,10 @@ public class TestHarness implements ErrorInterceptor {
     private final HttpClient client;
     private final int port;
     private final ObjectMapper mapper;
+
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client) throws IOException {
+        this(server, settings, reg, client, new ObjectMapper());
+    }
 
     @Inject
     public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
@@ -426,7 +437,7 @@ public class TestHarness implements ErrorInterceptor {
         private final AtomicReference<ByteBuf> content = new AtomicReference<>();
         private volatile ResponseFuture future;
         private Throwable err;
-        private final Map<StateType, CountDownLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, CountDownLatch>(StateType.class));
+        private final Map<StateType, NamedLatch> latches = Collections.synchronizedMap(new EnumMap<StateType, NamedLatch>(StateType.class));
         private final Duration timeout;
         private final ObjectMapper mapper;
 
@@ -436,8 +447,37 @@ public class TestHarness implements ErrorInterceptor {
             for (StateType type : StateType.values()) {
                 latches.put(type, new NamedLatch(type.name()));
             }
+            // Ensure latches are triggered if an event that logically comes after their event is triggered,
+            // or on cancel or failure
+            setupDependencies();
+
             this.timeout = timeout;
             this.mapper = mapper;
+        }
+
+        private void setupDependencies() {
+            depend(Closed, HeadersReceived, ContentReceived, FullContentReceived, Error);
+            depend(ContentReceived, HeadersReceived);
+            depend(FullContentReceived, HeadersReceived, ContentReceived, Error);
+            depend(Finished, HeadersReceived, ContentReceived, FullContentReceived, Closed, Error);
+            depend(Cancelled, StateType.values());
+            depend(Error, StateType.values());
+            depend(FullContentReceived, HeadersReceived, ContentReceived);
+        }
+
+        private void depend(StateType trigger, StateType... types) {
+            NamedLatch triggerLatch = latches.get(trigger);
+            triggerLatch.others = latchesFor(trigger, types);
+        }
+
+        private NamedLatch[] latchesFor(StateType exclude, StateType... types) {
+            List<NamedLatch> result = new ArrayList<>();
+            for (StateType type : types) {
+                if (type != exclude) {
+                    result.add(latches.get(type));
+                }
+            }
+            return result.toArray(new NamedLatch[result.size()]);
         }
 
         private String headersToString(HttpHeaders hdrs) {
@@ -461,13 +501,19 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         private final Thread mainThread = Thread.currentThread();
+        private AtomicBoolean timedOut = new AtomicBoolean();
+        private CountDownLatch timeoutWait = new CountDownLatch(1);
 
         public void run() {
             try {
                 Thread.sleep(timeout.getMillis());
+                timedOut.set(true);
+                timeoutWait.countDown();
                 if (!states.contains(StateType.Closed)) {
-                    System.out.println("Cancelling request for timeout "
-                            + timeout + " " + url.getPathAndQuery());
+                    if (log) {
+                        System.out.println("Cancelling request for timeout "
+                                + timeout + " " + url.getPathAndQuery());
+                    }
                     if (future != null) {
                         future.cancel();
                     }
@@ -490,15 +536,16 @@ public class TestHarness implements ErrorInterceptor {
                 System.out.println(url.getPathAndQuery() + " - " + state.name() + " - " + state.get());
             }
             states.add(state.stateType());
-            latches.get(state.stateType()).countDown();
             boolean updateState = true;
             switch (state.stateType()) {
                 case Connected:
+                    if (timeout.getMillis() != Long.MAX_VALUE) {
                     Thread t = new Thread(this);
                     t.setDaemon(true);
                     t.setName("Timeout thread for " + url.getPathAndQuery());
                     t.setPriority(Thread.NORM_PRIORITY - 1);
                     t.start();
+                    }
                     break;
                 case SendRequest:
                     State.SendRequest sr = (State.SendRequest) state;
@@ -506,10 +553,11 @@ public class TestHarness implements ErrorInterceptor {
                         System.out.println("SENT REQUEST " + headersToString(sr.get().headers()));
                     }
                     break;
-                case Closed:
-                    for (CountDownLatch latch : latches.values()) {
-                        latch.countDown();
+                case Timeout:
+                    if (log) {
+                        System.out.println("TIMEOUT.");
                     }
+                case Closed:
                     break;
                 case Finished:
                 case HeadersReceived:
@@ -536,10 +584,13 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         void await(StateType state) throws InterruptedException {
+            if (states.contains(state)) {
+                return;
+            }
             await(latches.get(state));
         }
 
-        void await(CountDownLatch latch) throws InterruptedException {
+        void await(ResettableCountDownLatch latch) throws InterruptedException {
             if (log) {
                 System.out.println("WAIT ON " + latch);
             }
@@ -555,13 +606,7 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public CallResult assertCode(int code) throws Throwable {
-            await(HeadersReceived);
-//            if (code != 100 && HttpResponseStatus.CONTINUE.equals(getStatus())) {
-            await(Closed);
-//            }
-            assertNotNull("Status is null, not " + code, getStatus());
-            assertEquals(code, getStatus().code());
-            return this;
+            return assertStatus(HttpResponseStatus.valueOf(code));
         }
 
         private String contentAsString() throws UnsupportedEncodingException {
@@ -569,12 +614,11 @@ public class TestHarness implements ErrorInterceptor {
             if (buf == null) {
                 return null;
             }
-//            assertNotNull(buf);
             if (!buf.isReadable()) {
                 return null;
             }
             buf.resetReaderIndex();
-            byte[] b = new byte[getContent().readableBytes()];
+            byte[] b = new byte[buf.readableBytes()];
             buf.readBytes(b);
             buf.resetReaderIndex();
             return new String(b, "UTF-8");
@@ -593,7 +637,7 @@ public class TestHarness implements ErrorInterceptor {
         public CallResult assertContentContains(String expected) throws Throwable {
             await(FullContentReceived);
             String s = contentAsString();
-            assertNotNull("Content buffer not readable", s);
+            assertNotNull("Content buffer not readable - expected '" + expected + "'", s);
             assertFalse("0 bytes content", s.isEmpty());
             assertTrue("Content does not contain '" + expected + "'", s.contains(expected));
             return this;
@@ -602,24 +646,57 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult assertContent(String expected) throws Throwable {
             await(FullContentReceived);
-            await(Closed);
             String s = contentAsString();
-            assertNotNull("Content buffer not readable", s);
+            assertNotNull("Content buffer not readable - expected '" + expected + "'", s);
             assertFalse("0 bytes content", s.isEmpty());
             assertEquals(expected, s);
             return this;
         }
 
         @Override
+        public CallResult assertTimedOut() throws Throwable {
+            timeoutWait.await(timeout.getMillis() * 2, TimeUnit.MILLISECONDS);
+            assertTrue("Did not time out", timedOut.get());
+            return this;
+        }
+
+        @Override
         public CallResult assertStatus(HttpResponseStatus status) throws Throwable {
             await(HeadersReceived);
-            if (HttpResponseStatus.CONTINUE != status && HttpResponseStatus.CONTINUE.equals(this.getStatus()) || getStatus() == null) {
-                await(Closed);
+            // Handle the case that the status is temporarily 100-CONTINUE - unless
+            // we're asserting that that is the status, we want to wait until we get
+            // the real response status, after the payload is sent
+            if (!HttpResponseStatus.CONTINUE.equals(status)) {
+                while (HttpResponseStatus.CONTINUE.equals(getStatus())) {
+                if (states.contains(StateType.Timeout)) {
+                    throw new AssertionError("Timed out");
+                }
+                    if (states.contains(StateType.Cancelled)) {
+                        throw new AssertionError("Cancelled");
             }
-            assertNotNull("Status never sent, expected " + status, this.getStatus());
-            HttpResponseStatus st = this.getStatus();
-            if (!status.equals(st)) {
-                throw new AssertionError("Expected " + status + " got " + st + ": " + content());
+                    HttpResponseStatus currStatus = getStatus();
+                    if (currStatus == null || HttpResponseStatus.CONTINUE.equals(currStatus)) {
+                        latches.get(HeadersReceived).reset();
+                        await(HeadersReceived);
+                    } else if (!HttpResponseStatus.CONTINUE.equals(currStatus)) {
+                        break;
+            }
+                }
+            }
+            if (getStatus() == null) {
+                if (states.contains(StateType.Timeout)) {
+                    throw new AssertionError("Timed out");
+                }
+                if (states.contains(StateType.Cancelled)) {
+                    throw new AssertionError("Cancelled");
+                }
+                System.out.println("AWAIT HEADERS RECEIVED AGAIN - states " + states);
+                await(HeadersReceived);
+            }
+            HttpResponseStatus actualStatus = getStatus();
+            assertNotNull("Status never sent, expected " + status, actualStatus);
+            if (!status.equals(actualStatus)) {
+                throw new AssertionError("Expected " + status + " got " + actualStatus + ": " + content());
             }
             return this;
         }
@@ -668,12 +745,12 @@ public class TestHarness implements ErrorInterceptor {
             await(HeadersReceived);
             HttpHeaders h = getHeaders();
             if (h == null) {
-                await(Closed);
+                await(ContentReceived);
                 h = getHeaders();
             } else {
                 CharSequence s = h.get(lookingFor.toString());
                 if (s == null) {
-                    await(Closed);
+                    await(ContentReceived);
                 }
             }
             return h;
@@ -682,27 +759,29 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHeaderNotEquals(HeaderValueType<T> hdr, T value) throws Throwable {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never arrived", h);
-            T obj = hdr.toValue(h.get(hdr.name().toString()).toString());
+            T obj = hdr.toValue(h.get(hdr.name()));
             assertNotEquals(value, obj);
             return this;
         }
 
         public <T> Iterable<T> getHeaders(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
-            List<CharSequence> all = h.getAll(hdr.name().toString());
+            List<CharSequence> all = h.getAll(hdr.name());
             List<T> result = new LinkedList<>();
             if (all != null) {
+                result = new ArrayList<>(all.size());
                 for (CharSequence s : all) {
-                    result.add(hdr.toValue(s));
+                    T obj = hdr.toValue(s);
+                    result.add(obj);
                 }
             }
-            return result;
+            return result == null ? Collections.<T>emptySet() : result;
         }
 
         public <T> T getHeader(HeaderValueType<T> hdr) throws InterruptedException {
             HttpHeaders h = waitForHeaders(hdr.name());
             assertNotNull("Headers never sent", h);
-            CharSequence result = h.get(hdr.name().toString());
+            CharSequence result = h.get(hdr.name());
             if (result != null) {
                 return hdr.toValue(result);
             }
@@ -711,7 +790,7 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public CallResult await() throws Throwable {
-            await(Closed);
+            await(FullContentReceived);
             return this;
         }
 
@@ -784,7 +863,7 @@ public class TestHarness implements ErrorInterceptor {
         public <T> CallResult assertHasContent() throws Throwable {
             await(FullContentReceived);
             if (getContent() == null) {
-                await(Closed);
+                await(FullContentReceived);
             }
             assertNotNull("No content received", getContent());
             return this;
@@ -869,7 +948,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         public CallResult assertHasCookie(String name) throws Throwable {
-            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
+            for (io.netty.handler.codec.http.cookie.Cookie ck : getHeaders(SET_COOKIE)) {
                 if (name.equals(ck.name())) {
                     return this;
                 }
@@ -879,7 +958,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         public CallResult assertCookieValue(String name, String val) throws Throwable {
-            for (Cookie ck : getHeaders(Headers.SET_COOKIE)) {
+            for (io.netty.handler.codec.http.cookie.Cookie ck : getHeaders(Headers.SET_COOKIE)) {
                 if (name.equals(ck.name())) {
                     assertEquals(val, ck.value());
                 }
@@ -890,9 +969,25 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public Cookie getCookie(String cookieName) throws InterruptedException {
             HttpHeaders headers = getHeaders();
-            for (CharSequence cookieHeader : headers.getAll(Headers.SET_COOKIE.name().toString())) {
-                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader.toString());
-                if (cookieName.equals(cookie.name().toString())) {
+            for (CharSequence cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
+                Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
+                if (cookie != null) {
+                    if (cookieName.equals(cookie.name())) {
+                        return cookie;
+                    }
+                } else if (log) {
+                        System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
+                    }
+                }
+            return null;
+        }
+
+        @Override
+        public io.netty.handler.codec.http.cookie.Cookie getCookieB(String cookieName) throws InterruptedException {
+            HttpHeaders headers = getHeaders();
+            for (CharSequence cookieHeader : headers.getAll(Headers.SET_COOKIE.name())) {
+                io.netty.handler.codec.http.cookie.Cookie cookie = Headers.SET_COOKIE.toValue(cookieHeader);
+                if (cookieName.equals(cookie.name())) {
                     return cookie;
                 }
             }
@@ -934,6 +1029,10 @@ public class TestHarness implements ErrorInterceptor {
 
         CallResult throwIfError() throws Throwable;
 
+        Cookie getCookieB(String cookieName) throws InterruptedException;
+
+        CallResult assertTimedOut() throws Throwable;
+
         <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable;
 
         <T> CallResult assertHeaderNotEquals(HeaderValueType<T> hdr, T value) throws Throwable;
@@ -965,23 +1064,46 @@ public class TestHarness implements ErrorInterceptor {
         Cookie getCookie(String cookieName) throws Throwable;
 
         String getCookieValue(String cookieName) throws Throwable;
-        
+
         HttpResponseStatus status();
     }
 
-    private static class NamedLatch extends CountDownLatch {
+    private static class NamedLatch extends ResettableCountDownLatch {
 
+        private ThreadLocal<Boolean> inCountDown = new ThreadLocal<>();
         private final String name;
+        NamedLatch[] others;
 
-        public NamedLatch(String name) {
+        public NamedLatch(String name, NamedLatch... others) {
             super(1);
             this.name = name;
+            this.others = others;
+        }
+
+        @Override
+        public void countDown() {
+            Boolean alreadyInCountDown = inCountDown.get();
+            if (Boolean.TRUE.equals(alreadyInCountDown)) {
+                return;
+            }
+            inCountDown.set(true);
+            try {
+                super.countDown();
+                for (ResettableCountDownLatch latch : others) {
+                    if (latch != this) {
+                        latch.countDown();
+                    }
+                }
+            } finally {
+                inCountDown.set(false);
+            }
         }
 
         @Override
         public void await() throws InterruptedException {
             String old = Thread.currentThread().getName();
-            Thread.currentThread().setName("Waiting " + this + " (was " + old + ")");
+            String threadName = "Waiting " + this + " (was " + old + ")";
+            Thread.currentThread().setName(threadName);
             try {
                 super.await();
             } finally {
@@ -992,7 +1114,8 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public boolean await(long l, TimeUnit tu) throws InterruptedException {
             String old = Thread.currentThread().getName();
-            Thread.currentThread().setName("Waiting " + this + " (was " + old + ")");
+            String threadName = "Waiting " + this + " (was " + old + ")";
+            Thread.currentThread().setName(threadName);
             try {
                 return super.await(l, tu);
             } finally {

@@ -68,6 +68,10 @@ final class RequestInfo {
     Duration age() {
         return new Duration(startTime, DateTime.now());
     }
+    
+    Duration remaining() {
+        return timeout == null ? null : timeout.minus(age());
+    }
 
     boolean isExpired() {
         if (timeout != null) {

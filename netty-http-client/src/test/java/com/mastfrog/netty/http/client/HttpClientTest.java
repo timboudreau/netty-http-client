@@ -38,8 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
  *
@@ -92,23 +92,24 @@ public class HttpClientTest {
     }
 
     @Test
-    public void test() throws Exception {
+    public void test() throws Throwable {
 //        if (true) return;
         HttpClient client = HttpClient.builder().build();
         final CookieStore store = new CookieStore();
+
 //        ResponseFuture h = client.get()setCookieStore(store).setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class) {
 //        ResponseFuture h = client.get().setURL(URL.parse("http://timboudreau.com/files/INTRNET2.TXT")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org/blog/api-list")).execute(new ResponseHandler<String>(String.class) {
 //        ResponseFuture h = client.get().setURL(URL.parse("http://mail-vm.timboudreau.org")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setURL(URL.parse("http://www.google.com")).execute(new ResponseHandler<String>(String.class){
 //        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("http://hp.timboudreau.org/blog/latest/read")).execute(new ResponseHandler<String>(String.class){
-        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("https://timboudreau.com/")).execute(new ResponseHandler<String>(String.class){
+        ResponseFuture h = client.get().setCookieStore(store).setURL(URL.parse("https://www.google.com/")).execute(new ResponseHandler<String>(String.class){
 
             @Override
             protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
                 System.out.println("CALLED BACK WITH '" + obj + "'");
             }
-            
+
         });
         h.on(State.HeadersReceived.class, new Receiver<HttpResponse>() {
 
@@ -120,7 +121,6 @@ public class HttpClientTest {
                 System.out.println("COOKIES: " + store);
             }
         });
-
         h.onAnyEvent(new Receiver<State<?>>() {
             Set<StateType> seen = new HashSet<>();
             
@@ -130,17 +130,13 @@ public class HttpClientTest {
                 seen.add(state.stateType());
                 if (state.get() instanceof HttpContent) {
                     HttpContent content = (HttpContent) state.get();
-                    ByteBuf bb = content.copy().content();
+                    ByteBuf bb = content.duplicate().content();
                     System.out.println("CHUNK " + bb.readableBytes() + " bytes");
-                } else if (state.get() instanceof HttpResponse) {
-//                    System.out.println("HEADERS: " + ((HttpResponse) state.get()).headers());
-//                    for (Map.Entry<String,String> e : ((HttpResponse) state.get()).headers().entries()) {
-//                        System.out.println(e.getKey() + ": " + e.getValue());
-//                    }
                 } else if (state.get() instanceof State.FullContentReceived) {
                     System.out.println("COOKIES: " + store);
                 }
             }
         });
+        h.await().throwIfError();
     }
 }

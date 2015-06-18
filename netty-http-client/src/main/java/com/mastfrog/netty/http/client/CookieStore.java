@@ -29,10 +29,10 @@ import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -220,7 +220,7 @@ public final class CookieStore implements Iterable<Cookie> {
                     it.remove();
                 }
             }
-            if (!cookie.isDiscard() && cookie.maxAge() > 0) {
+            if (cookie.maxAge() > 0) {
                 cookies.add(new DateCookie(cookie));
             }
         } finally {
@@ -318,15 +318,6 @@ public final class CookieStore implements Iterable<Cookie> {
             m.put("value", ck.value());
             m.put("httpOnly", ck.isHttpOnly());
             m.put("secure", ck.isSecure());
-            if (ck.comment() != null) {
-                m.put("comment", ck.comment());
-            }
-            if (ck.commentUrl() != null) {
-                m.put("commentUrl", ck.commentUrl());
-            }
-            if (ck.ports() != null && !ck.ports().isEmpty()) {
-                m.put("ports", ck.ports().toArray(new Integer[0]));
-            }
             list.add(m);
         }
         om.writeValue(out, list);
@@ -346,9 +337,6 @@ public final class CookieStore implements Iterable<Cookie> {
             String value = (String) m.get("value");
             Boolean httpOnly = (Boolean) m.get("httpOnly");
             Boolean secure = (Boolean) m.get("secure");
-            String comment = (String) m.get("comment");
-            String commentUrl = (String) m.get("commentUrl");
-            List<Integer> ports = (List<Integer>) m.get("ports");
             DateTime ts = timestamp == null ? DateTime.now() : new DateTime(timestamp.longValue());
             DateCookie cookie = new DateCookie(new DefaultCookie(name, value), ts);
             if (cookie.isExpired()) {
@@ -368,15 +356,6 @@ public final class CookieStore implements Iterable<Cookie> {
             }
             if (secure != null) {
                 cookie.setSecure(secure);
-            }
-            if (comment != null) {
-                cookie.setComment(comment);
-            }
-            if (commentUrl != null) {
-                cookie.setCommentUrl(commentUrl);
-            }
-            if (ports != null) {
-                cookie.setPorts(ports);
             }
             cks.add(cookie);
         }
@@ -476,16 +455,6 @@ public final class CookieStore implements Iterable<Cookie> {
         }
 
         @Override
-        public String comment() {
-            return delegate.comment();
-        }
-
-        @Override
-        public void setComment(String comment) {
-            delegate.setComment(comment);
-        }
-
-        @Override
         public long maxAge() {
             return delegate.maxAge();
         }
@@ -493,16 +462,6 @@ public final class CookieStore implements Iterable<Cookie> {
         @Override
         public void setMaxAge(long maxAge) {
             delegate.setMaxAge(maxAge);
-        }
-
-        @Override
-        public int version() {
-            return delegate.version();
-        }
-
-        @Override
-        public void setVersion(int version) {
-            delegate.setVersion(version);
         }
 
         @Override
@@ -526,53 +485,18 @@ public final class CookieStore implements Iterable<Cookie> {
         }
 
         @Override
-        public String commentUrl() {
-            return delegate.commentUrl();
-        }
-
-        @Override
-        public void setCommentUrl(String commentUrl) {
-            delegate.setCommentUrl(commentUrl);
-        }
-
-        @Override
-        public boolean isDiscard() {
-            return delegate.isDiscard();
-        }
-
-        @Override
-        public void setDiscard(boolean discard) {
-            delegate.setDiscard(discard);
-        }
-
-        @Override
-        public Set<Integer> ports() {
-            return delegate.ports();
-        }
-
-        @Override
-        public void setPorts(int... ports) {
-            delegate.setPorts(ports);
-        }
-
-        @Override
-        public void setPorts(Iterable<Integer> ports) {
-            delegate.setPorts(ports);
-        }
-
-        @Override
         public int compareTo(Cookie t) {
             return delegate.compareTo(t);
         }
 
         @Override
-        public String rawValue() {
-            return delegate.rawValue();
+        public boolean wrap() {
+            return delegate.wrap();
         }
 
         @Override
-        public void setRawValue(String rawValue) {
-            delegate.setRawValue(rawValue);
+        public void setWrap(boolean wrap) {
+            delegate.setWrap(wrap);
         }
     }
 }

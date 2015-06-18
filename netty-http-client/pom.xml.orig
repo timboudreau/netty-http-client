@@ -5,9 +5,9 @@
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
 <<<<<<< HEAD
-        <version>1.4.16</version>
+        <version>1.6.2-netty-5</version>
 =======
-        <version>1.5.2</version>
+        <version>1.6.2</version>
 >>>>>>> master
         <relativePath/>
     </parent>
@@ -30,6 +30,12 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-buffer</artifactId>
+            <type>jar</type>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-handler</artifactId>
+            <version>${netty.version}</version>
             <type>jar</type>
         </dependency>
         <dependency>

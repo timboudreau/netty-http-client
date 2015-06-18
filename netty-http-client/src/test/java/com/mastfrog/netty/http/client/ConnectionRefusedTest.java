@@ -53,22 +53,22 @@ public class ConnectionRefusedTest {
                     }
                 }).execute(new ResponseHandler<Object>(Object.class) {
 
-                    @Override
-                    protected void receive(Object obj) {
-                        System.out.println("RECEIVE " + obj);
-                        notified.set(true);
-                        latch.countDown();
-                    }
+            @Override
+            protected void receive(Object obj) {
+                System.out.println("RECEIVE " + obj);
+                notified.set(true);
+                latch.countDown();
+            }
 
-                    @Override
-                    protected void onError(Throwable err) {
-                        System.out.println("onError");
-                        err.printStackTrace();
-                        notified.set(true);
-                        latch.countDown();
-                    }
+            @Override
+            protected void onError(Throwable err) {
+                System.out.println("onError");
+                err.printStackTrace();
+                notified.set(true);
+                latch.countDown();
+            }
 
-                }).await(10, TimeUnit.SECONDS);
+        }).await(10, TimeUnit.SECONDS);
         Thread.sleep(3000);
         assertTrue(notified.get());
     }
@@ -78,7 +78,7 @@ public class ConnectionRefusedTest {
         final CountDownLatch latch = new CountDownLatch(1);
         HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
-        client.get().setURL("http://10.0.0.0/abcd")
+        client.get().setURL("http://192.168.1.254:10001/abcd")
                 .onEvent(new Receiver<State<?>>() {
 
                     @Override
@@ -116,6 +116,9 @@ public class ConnectionRefusedTest {
                     }
                 }).await(1, TimeUnit.SECONDS);
         latch.await(20, TimeUnit.SECONDS);
+        if (!notified.get()) {
+            Thread.sleep(5000);
+        }
         assertTrue(notified.get());
     }
 }

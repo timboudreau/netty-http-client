@@ -24,14 +24,14 @@
 package com.mastfrog.netty.http.client;
 
 import com.mastfrog.acteur.headers.Headers;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultCookie;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,7 +50,6 @@ public class CookieStoreTest {
 
     @Test
     public void test() throws IOException {
-        assertTrue(true);
         CookieStore store = new CookieStore();
         DefaultCookie ck1 = new DefaultCookie("foo", "bar");
         DefaultCookie ck2 = new DefaultCookie("one", "two");

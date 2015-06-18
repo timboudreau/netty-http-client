@@ -121,6 +121,10 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     }
     
     boolean cancel(Duration forTimeout) {
+        // We need to send the timeout event before setting the cancelled flag
+        if (forTimeout != null && !cancelled.get()) {
+            event(new State.Timeout(forTimeout));
+        }
         boolean result = cancelled.compareAndSet(false, true);
         if (result) {
             try {
@@ -132,9 +136,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                     fut.channel().close();
                 }
             } finally {
-                if (forTimeout != null) {
-                    event(new State.Timeout(forTimeout));
-                } else {
+                if (forTimeout == null) {
                     event(new State.Cancelled());
                 }
             }
@@ -142,7 +144,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         }
         return result;
     }
-
+    
     private volatile Throwable error;
 
     /**

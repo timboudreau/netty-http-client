@@ -85,7 +85,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     private boolean checkCancelled(ChannelHandlerContext ctx) {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-        boolean result = info.cancelled.get();
+        boolean result = info != null && info.cancelled.get();
         if (result) {
             Channel ch = ctx.channel();
             if (ch.isOpen()) {
@@ -247,7 +247,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     void sendFullResponse(ChannelHandlerContext ctx) {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-        if (info.dontAggregate) {
+        if (info != null && info.dontAggregate) {
             return;
         }
         ResponseState state = state(ctx, info);
