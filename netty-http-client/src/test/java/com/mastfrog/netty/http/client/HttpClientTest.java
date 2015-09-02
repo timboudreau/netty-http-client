@@ -62,7 +62,7 @@ public class HttpClientTest {
                 if (state.stateType() == StateType.Finished) {
                     DefaultFullHttpRequest d = (DefaultFullHttpRequest) state.get();
                     System.out.println("REQ HEADERS:");
-                    for (Map.Entry<CharSequence,CharSequence> e : d.headers().entries()) {
+                    for (Map.Entry<CharSequence,CharSequence> e : d.headers()) {
                         System.out.println(e.getKey() + ": " + e.getValue());
                     }
                     assertTrue(am.started.contains("http://localhost:9333/foo/bar"));
@@ -115,7 +115,7 @@ public class HttpClientTest {
 
             @Override
             public void receive(HttpResponse object) {
-                for (Map.Entry<CharSequence, CharSequence> e : object.headers().entries()) {
+                for (Map.Entry<CharSequence, CharSequence> e : object.headers()) {
                     System.out.println(e.getKey() + ": " + e.getValue());
                 }
                 System.out.println("COOKIES: " + store);

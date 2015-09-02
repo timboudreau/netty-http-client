@@ -7,7 +7,7 @@
 <<<<<<< HEAD
         <version>1.6.2-netty-5</version>
 =======
-        <version>1.6.2</version>
+        <version>1.6.3</version>
 >>>>>>> master
         <relativePath/>
     </parent>

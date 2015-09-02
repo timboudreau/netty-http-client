@@ -341,7 +341,7 @@ public final class HttpClient {
     }
 
     void copyHeaders(HttpRequest from, HttpRequest to) {
-        for (Map.Entry<CharSequence, CharSequence> e : from.headers().entries()) {
+        for (Map.Entry<CharSequence, CharSequence> e : from.headers()) {
             to.headers().add(e.getKey(), e.getValue());
         }
     }

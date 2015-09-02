@@ -485,7 +485,7 @@ public class TestHarness implements ErrorInterceptor {
                 return "[null]";
             }
             StringBuilder sb = new StringBuilder();
-            for (Map.Entry<CharSequence, CharSequence> e : hdrs.entries()) {
+            for (Map.Entry<CharSequence, CharSequence> e : hdrs) {
                 sb.append(e.getKey()).append(':').append(' ').append(e.getValue()).append('\n');
             }
             return sb.toString();
@@ -716,7 +716,7 @@ public class TestHarness implements ErrorInterceptor {
 
         private String headersToString() {
             StringBuilder sb = new StringBuilder();
-            for (Map.Entry<CharSequence, CharSequence> e : getHeaders().entries()) {
+            for (Map.Entry<CharSequence, CharSequence> e : getHeaders()) {
                 sb.append(e.getKey()).append(": ").append(e.getValue()).append("\n");
             }
             return sb.toString();

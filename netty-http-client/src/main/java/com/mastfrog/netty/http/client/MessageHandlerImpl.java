@@ -260,7 +260,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.aggregateContent));
             DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.aggregateContent);
-            for (Map.Entry<CharSequence, CharSequence> e : state.resp.headers().entries()) {
+            for (Map.Entry<CharSequence, CharSequence> e : state.resp.headers()) {
                 full.headers().add(e.getKey(), e.getValue());
             }
             state.aggregateContent.resetReaderIndex();
