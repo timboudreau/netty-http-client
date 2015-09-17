@@ -26,6 +26,7 @@ package com.timboudreau.netty.http.client.tests;
 import com.mastfrog.giulius.tests.GuiceRunner;
 import com.mastfrog.giulius.tests.TestWith;
 import com.mastfrog.netty.http.test.harness.TestHarness;
+import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.joda.time.Duration;
@@ -40,10 +41,14 @@ import org.junit.runner.RunWith;
 @RunWith(GuiceRunner.class)
 public class RedirectTest {
 
-    @Test(timeout = 6000)
+    @Test(timeout = 90000)
     public void testRedirects(TestHarness harn) throws Throwable {
-        harn.get("redir").go().assertStatus(HttpResponseStatus.OK).assertContent("Got it\n");
+        harn.get("redir").log().go().assertStatus(HttpResponseStatus.OK).assertContent("Got it\n");
         // Test that redirects time out correctly
-        harn.get("redir").log().setTimeout(Duration.standardSeconds(1)).go().assertTimedOut();
+        CallResult res = harn.get("redir").log().setTimeout(Duration.standardSeconds(1)).go();
+        res.await();
+        System.out.println("RESULT " + res);
+        System.out.println("STATUS " + res.status());
+        res.assertTimedOut();
     }
 }

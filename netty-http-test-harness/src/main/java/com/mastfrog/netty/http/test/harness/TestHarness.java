@@ -655,7 +655,11 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public CallResult assertTimedOut() throws Throwable {
-            timeoutWait.await(timeout.getMillis() * 2, TimeUnit.MILLISECONDS);
+            try {
+                timeoutWait.await(timeout.getMillis() * 2, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ex) {
+                //do nothing
+            }
             assertTrue("Did not time out", timedOut.get());
             return this;
         }
