@@ -116,4 +116,5 @@
             </releases>
         </repository>
     </repositories>
+    <url>https://github.com/timboudreau/netty-http-client</url>
 </project>

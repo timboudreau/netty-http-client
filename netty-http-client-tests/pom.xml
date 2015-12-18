@@ -25,4 +25,23 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <url>https://github.com/timboudreau/netty-http-client</url>
+    <scm>
+        <url>https://github.com/timboudreau/netty-http-client</url>
+        <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
+        <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
+    </scm>
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>http://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Tim Boudreau</name>
+            <email>tim@timboudreau.com</email>
+            <url>https://timboudreau.com</url>
+        </developer>
+    </developers>
 </project>

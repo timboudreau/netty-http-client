@@ -30,4 +30,18 @@
             <artifactId>junit</artifactId>
         </dependency>
     </dependencies>
+    <url>https://github.com/timboudreau/netty-http-client</url>
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>http://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Tim Boudreau</name>
+            <email>tim@timboudreau.com</email>
+            <url>https://timboudreau.com</url>
+        </developer>
+    </developers>
 </project>
