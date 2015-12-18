@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>1.6.3</version>
+        <version>1.6.4</version>
         <relativePath/>
     </parent>
     <artifactId>netty-http-client</artifactId>
