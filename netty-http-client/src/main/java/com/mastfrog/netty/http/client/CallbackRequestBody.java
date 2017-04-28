@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2015 Tim Boudreau
+ * Copyright 2016 tim.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,34 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.timboudreau.netty.http.client.tests;
 
-import com.mastfrog.giulius.tests.GuiceRunner;
-import com.mastfrog.giulius.tests.TestWith;
-import com.mastfrog.netty.http.test.harness.TestHarness;
-import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
-import com.mastfrog.netty.http.test.harness.TestHarnessModule;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import org.joda.time.Duration;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+package com.mastfrog.netty.http.client;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 
 /**
  *
  * @author Tim Boudreau
  */
-@TestWith({TestHarnessModule.class, TestModule.class})
-@RunWith(GuiceRunner.class)
-public class RedirectTest {
+public abstract class CallbackRequestBody {
 
-    @Test(timeout = 90000)
-    public void testRedirects(TestHarness harn) throws Throwable {
-        harn.get("redir").log().go().assertStatus(HttpResponseStatus.OK).assertContent("Got it\n");
-        // Test that redirects time out correctly
-        CallResult res = harn.get("redir").log().setTimeout(Duration.standardSeconds(1)).go();
-        res.await();
-        System.out.println("RESULT " + res);
-        System.out.println("STATUS " + res.status());
-        res.assertTimedOut();
+    public abstract CallbackResult onPublish(ChannelHandlerContext ctx);
+
+    protected final CallbackResult chunk(String data, boolean last) {
+        return null;
+    }
+
+    public static final class CallbackResult {
+        private final CallbackStatus status;
+        private final ByteBuf data;
+        private final Throwable error;
+
+        private CallbackResult(CallbackStatus status, ByteBuf data, Throwable error) {
+            this.status = status;
+            this.data = data;
+            this.error = error;
+        }
+    }
+
+    public enum CallbackStatus {
+        CALL_WHEN_FLUSHED,
+        ERROR,
+        END
     }
 }

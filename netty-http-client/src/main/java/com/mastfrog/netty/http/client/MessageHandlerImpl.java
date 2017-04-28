@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2015 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -84,7 +84,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     private boolean checkCancelled(ChannelHandlerContext ctx) {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-        boolean result = info.cancelled.get();
+        boolean result = info != null && info.cancelled.get();
         if (result) {
             Channel ch = ctx.channel();
             if (ch.isOpen()) {

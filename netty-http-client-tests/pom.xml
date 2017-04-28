@@ -4,23 +4,19 @@
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>1.6.2</version>
+        <version>1.6.5</version>
         <relativePath/>
     </parent>
     <groupId>com.timboudreau</groupId>
     <artifactId>netty-http-client-tests</artifactId>
-    <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>acteur</artifactId>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
             <artifactId>netty-http-test-harness</artifactId>
-            <type>jar</type>
-            <version>${mastfrog.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mastfrog</groupId>
@@ -32,7 +28,25 @@
             <groupId>com.mastfrog</groupId>
             <artifactId>giulius-tests</artifactId>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
     </dependencies>
+    <url>https://github.com/timboudreau/netty-http-client</url>
+    <scm>
+        <url>https://github.com/timboudreau/netty-http-client</url>
+        <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
+        <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
+    </scm>
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>http://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Tim Boudreau</name>
+            <email>tim@timboudreau.com</email>
+            <url>https://timboudreau.com</url>
+        </developer>
+    </developers>
 </project>

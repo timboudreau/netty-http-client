@@ -61,6 +61,10 @@ import org.joda.time.Duration;
  * @author Tim Boudreau
  */
 public class TestModule extends ServerModule<App> {
+    
+    static {
+        System.setProperty("acteur.debug", "true");
+    }
 
     public TestModule() {
         super(App.class);
