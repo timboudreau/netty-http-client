@@ -25,6 +25,7 @@ package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.url.HostAndPort;
@@ -361,6 +362,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
+        nue.headers().set(Headers.HOST.name(), url.toSimpleURL().getHost());
         submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate);
     }
 
