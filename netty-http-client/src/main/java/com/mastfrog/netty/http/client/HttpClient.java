@@ -34,7 +34,7 @@ import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.bootstrap.ChannelFactory;
+import io.netty.channel.ChannelFactory;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;

@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>1.6.5</version>
+        <version>1.7.0-dev</version>
         <relativePath/>
     </parent>
     <artifactId>netty-http-client</artifactId>
@@ -26,6 +26,10 @@
             <groupId>io.netty</groupId>
             <artifactId>netty-buffer</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-handler</artifactId>
+        </dependency>        
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-codec-http</artifactId>
