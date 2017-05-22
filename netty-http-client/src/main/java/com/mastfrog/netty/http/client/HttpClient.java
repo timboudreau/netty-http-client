@@ -25,6 +25,7 @@ package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.url.HostAndPort;
@@ -33,7 +34,7 @@ import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.bootstrap.ChannelFactory;
+import io.netty.channel.ChannelFactory;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
@@ -361,6 +362,7 @@ public final class HttpClient {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue);
+        nue.headers().set(Headers.HOST.name(), url.toSimpleURL().getHost());
         submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate);
     }
 
