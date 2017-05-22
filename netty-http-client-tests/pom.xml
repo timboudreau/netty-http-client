@@ -7,19 +7,19 @@
         <version>1.6.5</version>
         <relativePath/>
     </parent>
-    <groupId>com.timboudreau</groupId>
+    <groupId>com.mastfrog</groupId>
     <artifactId>netty-http-client-tests</artifactId>
     <dependencies>
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>acteur</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>netty-http-test-harness</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>giulius-tests</artifactId>
             <scope>test</scope>
         </dependency>
