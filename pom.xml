@@ -14,6 +14,7 @@
         <module>netty-http-client</module>
         <module>netty-http-test-harness</module>
         <module>netty-http-client-tests</module>
+        <module>tiny-http-server</module>
     </modules>
     <url>https://github.com/timboudreau/netty-http-client</url>
     <scm>

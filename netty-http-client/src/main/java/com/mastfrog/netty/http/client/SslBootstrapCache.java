@@ -35,9 +35,9 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.SslContext;
+import io.netty.resolver.AddressResolverGroup;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -57,8 +57,9 @@ final class SslBootstrapCache {
     private final int maxHeadersSize;
     private final boolean compress;
     private final Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings;
+    private final AddressResolverGroup<?> resolver;
     SslBootstrapCache(EventLoopGroup group, Duration timeout, SslContext sslContext, MessageHandlerImpl handler,
-            int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings) {
+            int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings, AddressResolverGroup<?> resolver) {
         this.group = group;
         this.timeout = timeout;
         this.sslContext = sslContext;
@@ -68,6 +69,7 @@ final class SslBootstrapCache {
         this.maxHeadersSize = maxHeadersSize;
         this.compress = compress;
         this.settings = settings;
+        this.resolver = resolver;
     }
 
     Bootstrap sslBootstrap(HostAndPort hostAndPort) {
@@ -92,6 +94,9 @@ final class SslBootstrapCache {
             bootstrapSsl.handler(new Initializer(k, handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
+            if (resolver != null) {
+                bootstrapSsl.resolver(resolver);
+            }
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             if (timeout != null) {
                 bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());

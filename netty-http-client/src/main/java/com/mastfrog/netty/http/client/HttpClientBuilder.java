@@ -25,11 +25,17 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.SslContext;
+import io.netty.resolver.AddressResolver;
+import io.netty.resolver.AddressResolverGroup;
+import io.netty.util.concurrent.EventExecutor;
+import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -39,9 +45,10 @@ import org.joda.time.Duration;
  */
 public final class HttpClientBuilder {
 
-    private int threadCount = 4;
+    private static final int DEFAULT_THREAD_COUNT = 4;
+    private int threadCount = -1;
     private int maxChunkSize = 65536;
-    private boolean compression = false;
+    private boolean compression = true;
     private int maxInitialLineLength = 2048;
     private int maxHeadersSize = 16384;
     private boolean followRedirects = true;
@@ -51,20 +58,18 @@ public final class HttpClientBuilder {
     private CookieStore cookies;
     private Duration timeout;
     private SslContext sslContext;
-
-    public HttpClientBuilder setSslContext(SslContext ctx) {
-        this.sslContext = ctx;
-        return this;
-    }
+    private AddressResolverGroup<? extends SocketAddress> resolver;
+    private NioEventLoopGroup group;
 
     /**
-     * Add A trust manager for SSL connections.
-     * @param mgr a trust manager
+     * Set the SSL context to use when accessing HTTPS addresses.
+     * In particular, use this if you want to abort untrusted connections.
+     * 
+     * @param ctx The context
      * @return this
-     * @deprecated Does nothing as of 1.6.1.3-dev / Netty 4.0.28
      */
-    @Deprecated
-    public HttpClientBuilder addTrustManager(TrustManager mgr) {
+    public HttpClientBuilder setSslContext(SslContext ctx) {
+        this.sslContext = ctx;
         return this;
     }
 
@@ -73,7 +78,7 @@ public final class HttpClientBuilder {
      * is independent of the timeout that can be set individually on
      * requests, but whichever timeout is shorter will take precedence.
      * The default is no timeout.
-     * @param timeout The timeout
+     * @param timeout The timeout, or null for no timeout (the default)
      * @return This
      */
     public HttpClientBuilder setTimeout(Duration timeout) {
@@ -134,6 +139,11 @@ public final class HttpClientBuilder {
      */
     public HttpClientBuilder threadCount(int count) {
         Checks.nonNegative("threadCount", count);
+        Checks.nonZero("threadCount", count);
+        if (group != null) {
+            throw new IllegalStateException("Cannot set threadCount if you are"
+                    + " providing the NioEventLoopGroup");
+        }
         this.threadCount = count;
         return this;
     }
@@ -145,6 +155,7 @@ public final class HttpClientBuilder {
      */
     public HttpClientBuilder maxChunkSize(int bytes) {
         Checks.nonNegative("bytes", bytes);
+        Checks.nonZero("bytes", bytes);
         this.maxChunkSize = bytes;
         return this;
     }
@@ -157,6 +168,8 @@ public final class HttpClientBuilder {
      * @return this
      */
     public HttpClientBuilder maxInitialLineLength(int max) {
+        Checks.nonZero("max", max);
+        Checks.nonNegative("max", max);
         maxInitialLineLength = max;
         return this;
     }
@@ -165,6 +178,8 @@ public final class HttpClientBuilder {
      * @return this
      */
     public HttpClientBuilder maxHeadersSize(int max) {
+        Checks.nonZero("max", max);
+        Checks.nonNegative("max", max);
         maxHeadersSize = max;
         return this;
     }
@@ -186,16 +201,70 @@ public final class HttpClientBuilder {
         compression = false;
         return this;
     }
+    
+    /**
+     * Set the DNS resolver to use, bypassing the default one.the passed resolver will
+     * be used to resolve <i>all</i> host names by the resulting HttpClient.
+     * 
+     * @param resolver The addresss setEventLoopGroup resolver
+     * @return this
+     */
+    public HttpClientBuilder resolver(AddressResolverGroup<? extends SocketAddress> resolver) {
+        this.resolver = resolver;
+        return this;
+    }
+    
+    /**
+     * Set the DNS resolver to use, bypassing the default one.the passed resolver will
+     * be used to resolve <i>all</i> host names by the resulting HttpClient.
+     * 
+     * @param <T> The type of address the resolver resolves
+     * @param resolver The addresss setEventLoopGroup resolver
+     * @return this
+     */
+    public <T extends SocketAddress> HttpClientBuilder resolver(AddressResolver<T> resolver) {
+        return resolver(new OneResolverGroup<>(resolver));
+    }
+    
+    private static final class OneResolverGroup<T extends SocketAddress> extends AddressResolverGroup <T> {
+        private final AddressResolver<T> singleResolver;
+
+        public OneResolverGroup(AddressResolver<T> singleResolver) {
+            this.singleResolver = singleResolver;
+        }
+
+        @Override
+        protected AddressResolver<T> newResolver(EventExecutor ee) throws Exception {
+            return singleResolver;
+        }
+    }
+    
+    /**
+     * Set the thread pool used to perform network I/O.
+     * 
+     * @param group The thread pool to use
+     * @return this
+     */
+    public HttpClientBuilder setEventLoopGroup(NioEventLoopGroup group) {
+        Checks.notNull("group", group);
+        if (threadCount != -1) {
+            throw new IllegalStateException("Thread count already set. If you want to provide "
+                    + "your own NioEventLoopGroup, don't also set that - these options are "
+                    + "mutually exclusive.");
+        }
+        this.group = group;
+        return this;
+    }
 
     /**
      * Build an HTTP client
      * @return an http client
      */
     public HttpClient build() {
-        return new HttpClient(compression, maxChunkSize, threadCount,
+        return new HttpClient(compression, maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
-                userAgent, interceptors, settings, send100continue,
-                cookies, timeout, sslContext);
+                userAgent, interceptors, Collections.unmodifiableList(new ArrayList<>(settings)), send100continue,
+                cookies, timeout, sslContext, resolver, group);
     }
 
     /**
@@ -238,7 +307,7 @@ public final class HttpClientBuilder {
                 it.remove();
             }
         }
-        settings.add(new ChannelOptionSetting<T>(option, value));
+        settings.add(new ChannelOptionSetting<>(option, value));
         return this;
     }
 

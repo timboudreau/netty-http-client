@@ -25,6 +25,7 @@ package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
@@ -52,6 +53,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.ssl.SslContext;
+import io.netty.resolver.AddressResolver;
+import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import java.io.IOException;
@@ -67,7 +70,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.net.ssl.SSLContext;
 import org.joda.time.Duration;
 
 /**
@@ -155,16 +157,17 @@ public final class HttpClient {
     private final Timer timer = new Timer("HttpClient timeout for HttpClient@" + System.identityHashCode(this));
     private final SslBootstrapCache sslBootstraps;
     private final MessageHandlerImpl handler;
+    private final AddressResolverGroup<?> resolver;
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null, null, null);
     }
 
     /**
      * Create a new HTTP client; prefer HttpClient.builder() where possible, as
-     * that is much simpler. HttpClientBuilder will remain backward compatible;
-     * this constructor may be changed if new parameters are needed (all state
-     * of an HTTP client is immutable and must be passed to the constructor).
+     * that is much simpler.HttpClientBuilder will remain backward compatible;
+ this constructor may be changed if new parameters are needed (all state
+ of an HTTP client is immutable and must be passed to the constructor).
      *
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
@@ -185,6 +188,7 @@ public final class HttpClient {
      * @param timeout Maximum time a connection will be open; may be null to
      * keep open indefinitely.
      * @param sslContext Ssl context for secure connections. May be null.
+     * @param resolver An alternate DNS resolver (may be null).
      * @param managers Trust managers for secure connections. May be empty for
      * default trust manager.
      */
@@ -192,9 +196,10 @@ public final class HttpClient {
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout, SslContext sslContext) {
-        group = new NioEventLoopGroup(threads, new TF());
+            CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver, NioEventLoopGroup threadPool) {
+        group = threadPool == null ? new NioEventLoopGroup(threads, new TF()) : threadPool;
         this.compress = compress;
+        this.resolver = resolver;
         this.maxInitialLineLength = maxInitialLineLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeadersSize = maxHeadersSize;
@@ -208,9 +213,9 @@ public final class HttpClient {
         this.cookies = cookies;
         this.timeout = timeout;
         this.handler = new MessageHandlerImpl(followRedirects, this);
-        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler, this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress, this.settings);
+        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler, this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress, this.settings, resolver);
     }
-
+    
     private static class TF implements ThreadFactory {
 
         private int ct = 0;
@@ -221,6 +226,7 @@ public final class HttpClient {
             t.setDaemon(true);
             return t;
         }
+
     }
 
     /**
@@ -299,6 +305,9 @@ public final class HttpClient {
     private synchronized Bootstrap start(HostAndPort hostAndPort) {
         if (bootstrap == null) {
             bootstrap = new Bootstrap();
+            if (resolver != null) {
+                bootstrap.resolver(resolver);
+            }
             bootstrap.group(group);
             bootstrap.handler(new Initializer(hostAndPort,
                     handler, null, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
@@ -336,9 +345,15 @@ public final class HttpClient {
         timer.cancel();
     }
 
-    void copyHeaders(HttpRequest from, HttpRequest to) {
-        for (Map.Entry<String, String> e : from.headers().entries()) {
-            to.headers().add(e.getKey(), e.getValue());
+    void copyHeaders(HttpRequest from, HttpRequest to, HeaderValueType<?>... exclude) {
+        copy: for (Map.Entry<String, String> e : from.headers().entries()) {
+            String header = e.getKey();
+            for (HeaderValueType<?> ex : exclude) {
+                if (ex.name().equalsIgnoreCase(header)) {
+                    continue copy;
+                }
+            }
+            to.headers().add(header, e.getValue());
         }
     }
 
@@ -361,8 +376,8 @@ public final class HttpClient {
         } else {
             nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
-        copyHeaders(info.req, nue);
-        nue.headers().set(Headers.HOST.name(), url.toSimpleURL().getHost());
+        copyHeaders(info.req, nue, Headers.HOST);
+        nue.headers().set(Headers.HOST.name(), url.getHost().toString());
         submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate);
     }
 
