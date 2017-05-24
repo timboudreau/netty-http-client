@@ -64,9 +64,9 @@ public final class HttpClientBuilder {
     private int maxRedirects = -1;
 
     /**
-     * Set the SSL context to use when accessing HTTPS addresses.
-     * In particular, use this if you want to abort untrusted connections.
-     * 
+     * Set the SSL context to use when accessing HTTPS addresses. In particular,
+     * use this if you want to abort untrusted connections.
+     *
      * @param ctx The context
      * @return this
      */
@@ -76,10 +76,10 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * Set the timeout for requests.  Note that this timeout
-     * is independent of the timeout that can be set individually on
-     * requests, but whichever timeout is shorter will take precedence.
-     * The default is no timeout.
+     * Set the timeout for requests. Note that this timeout is independent of
+     * the timeout that can be set individually on requests, but whichever
+     * timeout is shorter will take precedence. The default is no timeout.
+     *
      * @param timeout The timeout, or null for no timeout (the default)
      * @return This
      */
@@ -91,7 +91,7 @@ public final class HttpClientBuilder {
     /**
      * HTTP requests will transparently load a redirects. Note that this means
      * that handlers for events such as Connected may be called more than once -
-     * once for each request.  Following redirects is the default behavior.
+     * once for each request. Following redirects is the default behavior.
      *
      * @return
      */
@@ -113,6 +113,7 @@ public final class HttpClientBuilder {
     /**
      * Turn off the default behavior of setting the Expect: 100-CONTINUE header
      * when
+     *
      * @return
      */
     public HttpClientBuilder dontSend100Continue() {
@@ -122,6 +123,7 @@ public final class HttpClientBuilder {
 
     /**
      * Turn off following of redirects
+     *
      * @return this
      */
     public HttpClientBuilder dontFollowRedirects() {
@@ -130,10 +132,10 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * The number of worker threads for processing requests and responses.
-     * Netty is asynchronous, so you do not need as many threads as you will
-     * have simultaneous requests;  the default is 4.  Best to see if you
-     * have problems, and increase this value only if it makes a measurable
+     * The number of worker threads for processing requests and responses. Netty
+     * is asynchronous, so you do not need as many threads as you will have
+     * simultaneous requests; the default is 4. Best to see if you have
+     * problems, and increase this value only if it makes a measurable
      * improvement in throughput.
      *
      * @param count The number of threads
@@ -151,7 +153,8 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * The maximum size of a chunk in bytes.  The default is 64K.
+     * The maximum size of a chunk in bytes. The default is 64K.
+     *
      * @param bytes A number of bytes
      * @return this
      */
@@ -164,8 +167,9 @@ public final class HttpClientBuilder {
 
     /**
      * Set the maximum length of the HTTP initial line, e.g.
-     * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be
-     * sending extremely long URLs, the default of 2048 should be plenty.
+     * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be sending
+     * extremely long URLs, the default of 2048 should be plenty.
+     *
      * @param max
      * @return this
      */
@@ -175,8 +179,10 @@ public final class HttpClientBuilder {
         maxInitialLineLength = max;
         return this;
     }
+
     /**
      * Set the maximum size of headers in bytes
+     *
      * @return this
      */
     public HttpClientBuilder maxHeadersSize(int max) {
@@ -188,6 +194,7 @@ public final class HttpClientBuilder {
 
     /**
      * Turn on HTTP gzip or deflate compression
+     *
      * @return this
      */
     public HttpClientBuilder useCompression() {
@@ -197,17 +204,30 @@ public final class HttpClientBuilder {
 
     /**
      * Turn off HTTP gzip or deflate compression
+     *
      * @return this
      */
     public HttpClientBuilder noCompression() {
         compression = false;
         return this;
     }
-    
+
     /**
-     * Set the DNS resolver to use, bypassing the default one.the passed resolver will
-     * be used to resolve <i>all</i> host names by the resulting HttpClient.
-     * 
+     * For test environments using multiple host names - attaches a DNS resolver
+     * that will resolve all host name addresses to
+     * <code>InetAddress.getLocalHost()</code>.
+     *
+     * @return this
+     */
+    public HttpClientBuilder resolveAllHostsToLocalhost() {
+        return resolver(new LocalhostOnlyAddressResolverGroup());
+    }
+
+    /**
+     * Set the DNS resolver to use, bypassing the default one.the passed
+     * resolver will be used to resolve <i>all</i> host names by the resulting
+     * HttpClient.
+     *
      * @param resolver The addresss setEventLoopGroup resolver
      * @return this
      */
@@ -215,11 +235,12 @@ public final class HttpClientBuilder {
         this.resolver = resolver;
         return this;
     }
-    
+
     /**
-     * Set the DNS resolver to use, bypassing the default one.the passed resolver will
-     * be used to resolve <i>all</i> host names by the resulting HttpClient.
-     * 
+     * Set the DNS resolver to use, bypassing the default one.the passed
+     * resolver will be used to resolve <i>all</i> host names by the resulting
+     * HttpClient.
+     *
      * @param <T> The type of address the resolver resolves
      * @param resolver The addresss setEventLoopGroup resolver
      * @return this
@@ -227,11 +248,12 @@ public final class HttpClientBuilder {
     public <T extends SocketAddress> HttpClientBuilder resolver(AddressResolver<T> resolver) {
         return resolver(new OneResolverGroup<>(resolver));
     }
-    
+
     /**
-     * Set the maximum number of redirects this client can encounter before it considers
-     * itself to be in a redirect loop and cancels the request, sending a cancelled event.
-     * 
+     * Set the maximum number of redirects this client can encounter before it
+     * considers itself to be in a redirect loop and cancels the request,
+     * sending a cancelled event.
+     *
      * @param maxRedirects The maximum number of redirects
      * @return this
      */
@@ -240,8 +262,9 @@ public final class HttpClientBuilder {
         this.maxRedirects = maxRedirects;
         return this;
     }
-    
-    private static final class OneResolverGroup<T extends SocketAddress> extends AddressResolverGroup <T> {
+
+    private static final class OneResolverGroup<T extends SocketAddress> extends AddressResolverGroup<T> {
+
         private final AddressResolver<T> singleResolver;
 
         public OneResolverGroup(AddressResolver<T> singleResolver) {
@@ -253,10 +276,10 @@ public final class HttpClientBuilder {
             return singleResolver;
         }
     }
-    
+
     /**
      * Set the thread pool used to perform network I/O.
-     * 
+     *
      * @param group The thread pool to use
      * @return this
      */
@@ -273,6 +296,7 @@ public final class HttpClientBuilder {
 
     /**
      * Build an HTTP client
+     *
      * @return an http client
      */
     public HttpClient build() {
@@ -284,6 +308,7 @@ public final class HttpClientBuilder {
 
     /**
      * Set the user agent
+     *
      * @param userAgent
      * @return this
      */
@@ -294,7 +319,8 @@ public final class HttpClientBuilder {
 
     /**
      * Add an interceptor which should get a chance to process every request
-     * before it is invoked;  useful for things that sign requests and such.
+     * before it is invoked; useful for things that sign requests and such.
+     *
      * @param interceptor An interceptor
      * @return this
      */
@@ -306,8 +332,9 @@ public final class HttpClientBuilder {
     private final List<ChannelOptionSetting<?>> settings = new LinkedList<>();
 
     /**
-     * Set a low-level setting for the Netty pipeline.  See the
-     * <a href="http://netty.io/4.0/api/io/netty/channel/ChannelOption.html">Netty documentation</a>
+     * Set a low-level setting for the Netty pipeline. See the
+     * <a href="http://netty.io/4.0/api/io/netty/channel/ChannelOption.html">Netty
+     * documentation</a>
      * for what these are.
      *
      * @param <T> The type
@@ -339,9 +366,9 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * Encapsulates a setting that can be set on the Netty Bootstrap;  not
-     * really an API class, but exposed so that the HttpClient constructor
-     * can be invoked directly if someone wants to (using
+     * Encapsulates a setting that can be set on the Netty Bootstrap; not really
+     * an API class, but exposed so that the HttpClient constructor can be
+     * invoked directly if someone wants to (using
      * <a href="HttpClientBuilder.html">HttpClientBuilder</a> is much easier).
      *
      * @param <T> A type
@@ -363,7 +390,7 @@ public final class HttpClientBuilder {
         public T value() {
             return value;
         }
-        
+
         void apply(Bootstrap bootstrap) {
             bootstrap.option(option, value);
         }
