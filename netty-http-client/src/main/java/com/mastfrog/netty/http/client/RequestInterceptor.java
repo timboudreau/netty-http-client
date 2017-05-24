@@ -32,5 +32,5 @@ import io.netty.handler.codec.http.HttpRequest;
  * @author Tim Boudreau
  */
 public interface RequestInterceptor {
-    public HttpRequest intercept(HttpRequest req);
+    HttpRequest intercept(HttpRequest req);
 }

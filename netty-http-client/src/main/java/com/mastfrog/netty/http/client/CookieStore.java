@@ -244,14 +244,14 @@ public final class CookieStore implements Iterable<Cookie> {
     }
 
     void extract(HttpHeaders headers) {
-        List<String> hdrs = headers.getAll(Headers.SET_COOKIE.name());
+        List<String> hdrs = headers.getAll(Headers.SET_COOKIE_B.name());
         if (!hdrs.isEmpty()) {
             Lock writeLock = lock.writeLock();
             try {
                 writeLock.lock();
                 for (String header : hdrs) {
                     try {
-                        Cookie cookie = Headers.SET_COOKIE.toValue(header);
+                        Cookie cookie = Headers.SET_COOKIE_B.toValue(header);
                         add(cookie);
                     } catch (Exception e) {
                         if (errorHandler != null) {
