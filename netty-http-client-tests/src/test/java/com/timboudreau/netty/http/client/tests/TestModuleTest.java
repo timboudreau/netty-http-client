@@ -34,7 +34,7 @@ import com.mastfrog.netty.http.test.harness.TestHarnessModule;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBufInputStream;
-import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpResponse;

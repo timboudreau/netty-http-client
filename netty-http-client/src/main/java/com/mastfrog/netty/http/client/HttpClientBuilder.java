@@ -24,6 +24,7 @@
 package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
+import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.SslContext;
@@ -39,7 +40,7 @@ import java.util.List;
 import org.joda.time.Duration;
 
 /**
- * Builds an HTTP client
+ * Builds an HTTP client.
  *
  * @author Tim Boudreau
  */
@@ -60,6 +61,7 @@ public final class HttpClientBuilder {
     private SslContext sslContext;
     private AddressResolverGroup<? extends SocketAddress> resolver;
     private NioEventLoopGroup group;
+    private int maxRedirects = -1;
 
     /**
      * Set the SSL context to use when accessing HTTPS addresses.
@@ -226,6 +228,19 @@ public final class HttpClientBuilder {
         return resolver(new OneResolverGroup<>(resolver));
     }
     
+    /**
+     * Set the maximum number of redirects this client can encounter before it considers
+     * itself to be in a redirect loop and cancels the request, sending a cancelled event.
+     * 
+     * @param maxRedirects The maximum number of redirects
+     * @return this
+     */
+    public HttpClientBuilder setMaxRedirects(int maxRedirects) {
+        Checks.nonNegative("maxRedirects", maxRedirects);
+        this.maxRedirects = maxRedirects;
+        return this;
+    }
+    
     private static final class OneResolverGroup<T extends SocketAddress> extends AddressResolverGroup <T> {
         private final AddressResolver<T> singleResolver;
 
@@ -264,7 +279,7 @@ public final class HttpClientBuilder {
         return new HttpClient(compression, maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, Collections.unmodifiableList(new ArrayList<>(settings)), send100continue,
-                cookies, timeout, sslContext, resolver, group);
+                cookies, timeout, sslContext, resolver, group, maxRedirects);
     }
 
     /**
@@ -296,7 +311,7 @@ public final class HttpClientBuilder {
      * for what these are.
      *
      * @param <T> The type
-     * @param option The option
+     * @param option The applyOption
      * @param value The value type
      * @return this
      */
@@ -331,7 +346,7 @@ public final class HttpClientBuilder {
      *
      * @param <T> A type
      */
-    protected static class ChannelOptionSetting<T> {
+    protected static final class ChannelOptionSetting<T> {
 
         private final ChannelOption<T> option;
         private final T value;
@@ -347,6 +362,10 @@ public final class HttpClientBuilder {
 
         public T value() {
             return value;
+        }
+        
+        void apply(Bootstrap bootstrap) {
+            bootstrap.option(option, value);
         }
     }
 }

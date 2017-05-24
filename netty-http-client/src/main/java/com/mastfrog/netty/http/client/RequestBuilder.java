@@ -39,6 +39,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -47,8 +49,11 @@ import io.netty.util.CharsetUtil;
 import java.awt.image.RenderedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import javax.imageio.ImageIO;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
@@ -210,13 +215,13 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             e.addTo(h.headers());
         }
         if (!noHostHeader) {
-            h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
+            h.headers().add(HttpHeaderNames.HOST, u.getHost().toString());
         }
-        if (!h.headers().contains(HttpHeaders.Names.CONNECTION) && !noConnectionHeader) {
-            h.headers().add(HttpHeaders.Names.CONNECTION, "close");
+        if (!h.headers().contains(HttpHeaderNames.CONNECTION) && !noConnectionHeader) {
+            h.headers().add(HttpHeaderNames.CONNECTION, "close");
         }
         if (!noDateHeader) {
-            h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
+            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toString(DateTime.now()));
         }
         if (store != null) {
             store.decorate(h);
@@ -243,7 +248,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         } else if (o instanceof ByteBuf) {
             body = (ByteBuf) o;
             if (send100Continue) {
-                addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
+                addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT.toString()), HttpHeaderValues.CONTINUE.toString());
             }
             addHeader(Headers.CONTENT_LENGTH, (long) body.readableBytes());
             addHeader(Headers.CONTENT_TYPE, contentType);
@@ -261,6 +266,13 @@ abstract class RequestBuilder implements HttpRequestBuilder {
                 String type = contentType.subtype();
                 if ("jpeg".equals(type)) {
                     type = "jpg";
+                }
+                List<String> formats = Arrays.asList(ImageIO.getWriterFormatNames());
+                if (!formats.contains(type)) {
+                    System.err.println("Cannot convert image to " + contentType
+                            + " - substituting jpeg.");
+                    type = "jpg";
+                    contentType = MediaType.JPEG;
                 }
                 ImageIO.write((RenderedImage) o, type, out);
             }

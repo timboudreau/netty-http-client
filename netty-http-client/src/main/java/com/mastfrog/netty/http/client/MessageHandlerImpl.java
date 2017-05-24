@@ -34,7 +34,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -53,12 +53,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Sharable
 final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
+    private static final int DEFAULT_MAX_REDIRECTS = 15;
     private final boolean followRedirects;
     private final HttpClient client;
+    private final int maxRedirects;
 
-    MessageHandlerImpl(boolean followRedirects, HttpClient client) {
+    MessageHandlerImpl(boolean followRedirects, HttpClient client, int maxRedirects) {
         this.followRedirects = followRedirects;
         this.client = client;
+        this.maxRedirects = maxRedirects == -1 ? DEFAULT_MAX_REDIRECTS : maxRedirects;
     }
 
     @Override
@@ -79,7 +82,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         info.handle.event(new State.Error(cause));
-        cause.printStackTrace();
+//        cause.printStackTrace();
     }
 
     private boolean checkCancelled(ChannelHandlerContext ctx) {
@@ -139,7 +142,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     private String isRedirect(RequestInfo info, HttpResponse msg) throws UnsupportedEncodingException {
-        HttpResponseStatus status = msg.getStatus();
+        HttpResponseStatus status = msg.status();
         switch (status.code()) {
             case 300:
             case 301:
@@ -147,7 +150,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             case 303:
             case 305:
             case 307:
-                String hdr = URLDecoder.decode(msg.headers().get(HttpHeaders.Names.LOCATION), "UTF-8");
+                String hdr = URLDecoder.decode(msg.headers().get(HttpHeaderNames.LOCATION), "UTF-8");
                 if (hdr != null) {
                     if (hdr.toLowerCase().startsWith("http://") || hdr.toLowerCase().startsWith("https://")) {
                         return hdr;
@@ -178,8 +181,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         }
     }
 
-    public static final int MAX_REDIRECTS = 15;
-
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
@@ -188,26 +189,49 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         final ResponseState state = state(ctx, info);
         if (msg instanceof HttpResponse) {
             state.resp = (HttpResponse) msg;
+            boolean redirectLoop = false;
+            String redirUrl = null;
             if (followRedirects) {
-                String redirUrl = isRedirect(info, state.resp);
+                redirUrl = isRedirect(info, state.resp);
                 if (redirUrl != null) {
-                    Method meth = state.resp.getStatus().code() == 303 ? Method.GET : Method.valueOf(info.req.getMethod().name());
+                    Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
                     RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate);
                     ctx.channel().attr(HttpClient.KEY).set(b);
-                    info.handle.event(new State.Redirect(URL.parse(redirUrl)));
-                    info.handle.cancelled = new AtomicBoolean();
-                    if (info.redirectCount.getAndIncrement() < MAX_REDIRECTS) {
-                        client.redirect(meth, URL.parse(redirUrl), info);
+                    if (info.redirectCount.getAndIncrement() < maxRedirects) {
+                        URL url;
+                        if (redirUrl.contains("://")) {
+                            url = URL.parse(redirUrl);
+                        } else {
+                            if (redirUrl.length() > 0 && redirUrl.charAt(0) == '/') {
+                                url = URL.parse(info.url.getBaseURL(true) + redirUrl);
+                            } else if (redirUrl.length() > 0 && redirUrl.charAt(0) != '/') {
+                                url = URL.parse(info.url.toString() + redirUrl);
+                            } else {
+                                url = URL.parse(redirUrl);
+                            }
+                        }
+                        if (!url.isValid()) {
+                            info.handle.event(new State.Error(new RedirectException(RedirectException.Kind.INVALID_REDIRECT_URL, redirUrl)));
+                            return;
+                        }
+                        //XXX handle redirects that contain only a path
+                        info.handle.event(new State.Redirect(url));
+                        info.handle.cancelled = new AtomicBoolean();
+                        client.redirect(meth, url, info);
                         return;
                     } else {
-                        info.handle.event(new State.Error(new IOException("Redirect loop to " + redirUrl)));
-                        info.handle.cancelled.lazySet(true);
+                        redirectLoop = true;
                     }
                 }
             }
             info.handle.event(new State.HeadersReceived(state.resp));
+            if (redirectLoop) {
+                RedirectException redirException = new RedirectException(RedirectException.Kind.REDIRECT_LOOP, redirUrl);
+                info.handle.event(new State.Error(redirException));
+                info.handle.cancelled.lazySet(true);
+            }
         } else if (msg instanceof HttpContent) {
             HttpContent c = (HttpContent) msg;
             info.handle.event(new State.ContentReceived(c));
@@ -217,8 +241,8 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             }
             state.aggregateContent.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;
-            if (!last && state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH) != null) {
-                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaders.Names.CONTENT_LENGTH));
+            if (!last && state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH) != null) {
+                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH));
                 last = state.readableBytes() >= len;
             }
             if (last) {
@@ -258,14 +282,14 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.aggregateContent.readableBytes() > 0) {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.aggregateContent));
-            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.getProtocolVersion(), state.resp.getStatus(), state.aggregateContent);
+            DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.aggregateContent);
             for (Map.Entry<String, String> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());
             }
             state.aggregateContent.resetReaderIndex();
 
             if (info.r != null) {
-                info.r.internalReceive(state.resp.getStatus(), state.resp.headers(), state.aggregateContent);
+                info.r.internalReceive(state.resp.status(), state.resp.headers(), state.aggregateContent);
             }
             state.aggregateContent.resetReaderIndex();
             info.handle.event(new State.Finished(full));

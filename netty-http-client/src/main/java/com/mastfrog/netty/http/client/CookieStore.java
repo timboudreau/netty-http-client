@@ -154,11 +154,11 @@ public final class CookieStore implements Iterable<Cookie> {
 
     void decorate(HttpRequest req) {
         URL url;
-        if (!req.getUri().contains("://")) {
+        if (!req.uri().contains("://")) {
             String host = req.headers().get(Headers.HOST.name());
             url = URL.builder().setPath(req.uri()).setHost(host).create();
         } else {
-            url = URL.parse(req.getUri());
+            url = URL.parse(req.uri());
         }
         Lock readLock = lock.readLock();
         readLock.lock();

@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,32 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.netty.http.client;
 
-import com.mastfrog.util.thread.Receiver;
-import java.util.LinkedHashSet;
-import java.util.Set;
+package com.mastfrog.netty.http.client;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class HandlerEntry<T> {
+public class RedirectException extends Exception {
 
-    final Class<? extends State<T>> state;
-    private final Set<Receiver<T>> receivers = new LinkedHashSet<>();
+    private final Kind kind;
 
-    HandlerEntry(Class<? extends State<T>> state) {
-        this.state = state;
+    public enum Kind {
+        REDIRECT_LOOP,
+        INVALID_REDIRECT_URL
     }
-
-    void add(Receiver<T> r) {
-        receivers.add(r);
+    
+    RedirectException(Kind kind, String url) {
+        super(url);
+        this.kind = kind;
     }
-
-    void onEvent(State<T> state) {
-        for (Receiver<T> r : receivers) {
-            r.receive(state.get());
-        }
+    
+    public Kind kind() {
+        return kind;
     }
 }

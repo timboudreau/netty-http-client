@@ -1,11 +1,15 @@
 package com.mastfrog.netty.http.client;
 
+import com.google.common.collect.Sets;
 import com.mastfrog.tiny.http.server.Responder;
 import com.mastfrog.tiny.http.server.ResponseHead;
 import com.mastfrog.tiny.http.server.TinyHttpServer;
+import com.mastfrog.url.URL;
+import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.security.cert.CertificateException;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import org.junit.Test;
 
@@ -16,6 +20,7 @@ import org.junit.After;
 import static org.junit.Assert.assertEquals;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 
 /**
@@ -43,17 +48,29 @@ public class RedirectLoopTest {
     public void testRedirect() throws Exception {
         final AtomicReference<String> content = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        client.get().setURL("http://foo.com:" + server.httpPort()).execute(new ResponseHandler<String>(String.class) {
-            @Override
-            protected void receive(String obj) {
-                content.set(obj);
-                latch.countDown();
-            }
-        }).await(10, TimeUnit.SECONDS);
+        final Set<URL> redirects = Sets.newConcurrentHashSet();
+        URL first = URL.parse("http://bar.com:" + server.httpPort());
+        URL second = URL.parse("https://baz.com:" + server.httpsPort() + "/foo/bar/baz");
+        client.get().setURL("http://foo.com:" + server.httpPort())
+                .on(State.Redirect.class, new Receiver<URL>() {
+                    @Override
+                    public void receive(URL url) {
+                        redirects.add(url);
+                    }
+                })
+                .execute(new ResponseHandler<String>(String.class) {
+                    @Override
+                    protected void receive(String obj) {
+                        content.set(obj);
+                        latch.countDown();
+                    }
+                }).await(10, TimeUnit.SECONDS);
         latch.await(10, TimeUnit.SECONDS);
         server.throwLast();
         assertNotNull(content.get());
         assertEquals("Woo hoo", content.get());
+        assertTrue(redirects + " does not contain " + second, redirects.contains(second));
+        assertTrue(redirects + "  does not contain " + first, redirects.contains(first));
     }
 
     private final class ResponderImpl implements Responder {

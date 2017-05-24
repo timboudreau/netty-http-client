@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,30 +23,41 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.mastfrog.util.thread.Receiver;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import com.mastfrog.util.Exceptions;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class HandlerEntry<T> {
+final class DeferredAssertions implements AutoCloseable {
 
-    final Class<? extends State<T>> state;
-    private final Set<Receiver<T>> receivers = new LinkedHashSet<>();
+    private final List<Assertion> assertions = new CopyOnWriteArrayList<>();
 
-    HandlerEntry(Class<? extends State<T>> state) {
-        this.state = state;
-    }
-
-    void add(Receiver<T> r) {
-        receivers.add(r);
-    }
-
-    void onEvent(State<T> state) {
-        for (Receiver<T> r : receivers) {
-            r.receive(state.get());
+    DeferredAssertions exec() throws Throwable {
+        for (Assertion a : assertions) {
+            a.exec();
         }
+        return this;
+    }
+
+    DeferredAssertions add(Assertion assertion) {
+        assertions.add(assertion);
+        return this;
+    }
+
+    @Override
+    public void close() throws Exception {
+        try {
+            exec();
+        } catch (Throwable ex) {
+            Exceptions.chuck(ex);
+        }
+    }
+
+    interface Assertion {
+
+        void exec() throws Throwable;
     }
 }

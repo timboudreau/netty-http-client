@@ -24,9 +24,11 @@
 package com.mastfrog.netty.http.client;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.net.MediaType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.util.Connection;
+import com.mastfrog.netty.http.client.DeferredAssertions.Assertion;
 import com.mastfrog.tiny.http.server.ChunkedResponse;
 import com.mastfrog.tiny.http.server.Responder;
 import com.mastfrog.tiny.http.server.ResponseHead;
@@ -49,15 +51,20 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLException;
 import org.junit.After;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
+import org.netbeans.validation.api.InvalidInputException;
 
 /**
  *
@@ -67,21 +74,147 @@ public class HttpClientTest {
 
     private TinyHttpServer server;
     private HttpClient client;
-    private int[] ports = new int[2];
 
     @Before
     public void setup() throws CertificateException, SSLException, InterruptedException {
         server = new TinyHttpServer(new ResponderImpl());
-        client = HttpClient.builder().resolver(new LocalhostOnlyAddressResolverGroup()).followRedirects().build();
-        ports[0] = server.httpPort();
-        ports[1] = server.httpsPort();
+        client = HttpClient.builder()
+                .resolver(new LocalhostOnlyAddressResolverGroup())
+                .followRedirects()
+                .setMaxRedirects(5)
+                .build();
     }
 
     @After
     public void tearDown() throws Exception {
-        Thread.sleep(250);
+        Thread.sleep(200);
         server.shutdown();
         client.shutdown();
+    }
+
+    @Test
+    public void testRelativeRedirects() throws Throwable {
+        try (DeferredAssertions as = new DeferredAssertions()) {
+            client.get().setURL("http://messy.re:" + server.httpPort() + "/").onEvent(new Receiver<State<?>>() {
+                @Override
+                public void receive(final State<?> object) {
+//                    System.err.println("RCV: " + object + " - " + object.get());
+                    if (object.stateType() == StateType.Redirect) {
+                        as.add(new Assertion() {
+                            @Override
+                            public void exec() throws Throwable {
+                                assertEquals("http://messy.re:" + server.httpPort() + "/foo/bar", object.get().toString());
+                            }
+                        });
+                    }
+                }
+            }).execute().await();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testRedirectLimit() throws Throwable {
+        final List<URL> redirects = new CopyOnWriteArrayList<>();
+        final Set<StateType> states = Sets.newConcurrentHashSet();
+        final AtomicBoolean errorResponse = new AtomicBoolean();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        final AtomicBoolean received = new AtomicBoolean();
+        client.get().setURL("http://redirect.me:" + server.httpPort() + "/").on(State.Redirect.class, new Receiver<URL>() {
+            @Override
+            public void receive(URL object) {
+                redirects.add(object);
+            }
+        }).onEvent(new Receiver<State<?>>() {
+            @Override
+            public void receive(State<?> object) {
+                states.add(object.stateType());
+            }
+        }).execute(new ResponseHandler<String>(String.class) {
+            @Override
+            protected void onError(Throwable err) {
+                error.set(err);
+            }
+
+            @Override
+            protected void onErrorResponse(HttpResponseStatus status, HttpHeaders headers, String content) {
+                System.out.println("Error Response " + status + " " + content);
+                errorResponse.set(true);
+            }
+
+            @Override
+            protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
+                received.set(true);
+            }
+
+        }).await(5, TimeUnit.SECONDS);
+        Thread.sleep(200);
+        assertEquals(5, redirects.size());
+        assertTrue(states.contains(StateType.Connecting));
+        assertTrue(states.contains(StateType.Connected));
+        assertTrue(states.contains(StateType.SendRequest));
+        assertTrue(states.contains(StateType.AwaitingResponse));
+        assertTrue(states.contains(StateType.HeadersReceived));
+        assertTrue(states.contains(StateType.Error));
+        assertTrue(states.contains(StateType.Redirect));
+
+        assertFalse(states.contains(StateType.Timeout));
+        assertFalse(states.contains(StateType.Finished));
+        assertFalse(states.contains(StateType.FullContentReceived));
+        assertFalse(errorResponse.get());
+        assertFalse(received.get());
+        assertNotNull(error.get());
+        assertTrue(error.get() instanceof RedirectException);
+        assertTrue(((RedirectException) error.get()).kind() == RedirectException.Kind.REDIRECT_LOOP);
+    }
+
+    @Test(expected = InvalidInputException.class)
+    public void testInvalidUrl() throws Throwable {
+        client.get().setURL(URL.parse("!garbage!!")).execute();
+    }
+
+    @Test
+    public void testCancellation() throws Throwable {
+        final CountDownLatch latch = new CountDownLatch(2);
+        final AtomicReference<ResponseFuture> future = new AtomicReference<>();
+        final AtomicReference<Throwable> exception = new AtomicReference<>();
+        final AtomicBoolean cancelled = new AtomicBoolean();
+        final AtomicBoolean receiveCalled = new AtomicBoolean();
+        final AtomicBoolean errorResponseCalled = new AtomicBoolean();
+        future.set(client.get().setURL("http://cancel.me:" + server.httpPort()).onEvent(new Receiver<State<?>>() {
+            @Override
+            public void receive(State<?> object) {
+                if (object.stateType() == StateType.Cancelled) {
+                    cancelled.set(true);
+                    latch.countDown();
+                }
+            }
+        }).execute(new ResponseHandler<String>(String.class) {
+            @Override
+            protected void onError(Throwable err) {
+                exception.set(err);
+                latch.countDown();
+            }
+
+            @Override
+            protected void onErrorResponse(HttpResponseStatus status, HttpHeaders headers, String content) {
+                errorResponseCalled.set(true);
+            }
+
+            @Override
+            protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
+                receiveCalled.set(true);
+            }
+
+        }));
+        future.get().cancel();
+        latch.await(10, TimeUnit.SECONDS);
+        assertFalse(errorResponseCalled.get());
+        assertFalse(receiveCalled.get());
+        Thread.sleep(200);
+        assertNotNull(exception.get());
+        assertTrue(exception.get() instanceof CancellationException);
     }
 
     @Test
@@ -114,7 +247,7 @@ public class HttpClientTest {
                             });
                         } else if (state.stateType() == StateType.FullContentReceived) {
                             ByteBuf buf = (ByteBuf) state.get();
-                            byte[] bytes = new byte[ buf.readableBytes()];
+                            byte[] bytes = new byte[buf.readableBytes()];
                             buf.getBytes(0, bytes);
                             final String content = new String(bytes, CharsetUtil.UTF_8);
                             assertions.add(new DeferredAssertions.Assertion() {
@@ -137,31 +270,8 @@ public class HttpClientTest {
         assertTrue(stateTypes.contains(StateType.FullContentReceived));
         assertTrue(stateTypes.contains(StateType.HeadersReceived));
         assertFalse(stateTypes.contains(StateType.Cancelled));
-        assertFalse(stateTypes.contains(StateType.Closed));
         assertFalse(stateTypes.contains(StateType.Error));
         assertEquals("bar", xheader[0]);
-    }
-
-    private static final class DeferredAssertions {
-
-        private final List<Assertion> assertions = new ArrayList<>();
-
-        DeferredAssertions exec() throws Throwable {
-            for (Assertion a : assertions) {
-                a.exec();
-            }
-            return this;
-        }
-
-        DeferredAssertions add(Assertion assertion) {
-            assertions.add(assertion);
-            return this;
-        }
-
-        interface Assertion {
-
-            void exec() throws Throwable;
-        }
     }
 
     private static class AM implements ActivityMonitor {
@@ -233,6 +343,12 @@ public class HttpClientTest {
                     return cookieResponse(req, response);
                 case "foo.bar":
                     return postResponse(req, response);
+                case "cancel.me":
+                    return cancelResponse(req, response);
+                case "redirect.me":
+                    return redirectForever(req, response);
+                case "messy.re":
+                    return relativeRedirect(req, response);
                 default:
                     throw new AssertionError("Unknown host header: " + req.headers().get(HttpHeaderNames.HOST));
             }
@@ -270,5 +386,26 @@ public class HttpClientTest {
             return "Hey you, " + body;
         }
 
+        private Object cancelResponse(HttpRequest req, ResponseHead response) throws Exception {
+            Thread.sleep(30);
+            response.status(HttpResponseStatus.BAD_REQUEST);
+            return "Should not be sent";
+        }
+
+        private int count = 1;
+
+        private Object redirectForever(HttpRequest req, ResponseHead response) {
+            response.status(HttpResponseStatus.MOVED_PERMANENTLY);
+            response.header("Location").set("http://redirect.me:" + server.httpPort() + req.uri() + "/" + count++);
+            return "Hello!";
+        }
+
+        private Object relativeRedirect(HttpRequest req, ResponseHead response) {
+            if (req.uri().equals("") || req.uri().equals("/")) {
+                response.status(HttpResponseStatus.MOVED_PERMANENTLY);
+                response.header("Location").set("/foo/bar");
+            }
+            return "Boo";
+        }
     }
 }

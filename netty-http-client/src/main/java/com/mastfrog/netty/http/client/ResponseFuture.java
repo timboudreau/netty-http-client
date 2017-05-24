@@ -26,7 +26,9 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -68,12 +70,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     /**
      * Wait for the channel to be closed. Dangerous without a timeout!
      * <p/>
-     * Note - blocking while waiting for a response defeats the purpose
-     * of using an asynchronous HTTP client;  this sort of thing is
-     * sometimes useful in unit tests, but should not be done in production
-     * code.  Where possible, find a way to
-     * attach a callback and finish work there, rather than use this
-     * method.
+     * Note - blocking while waiting for a response defeats the purpose of using
+     * an asynchronous HTTP client; this sort of thing is sometimes useful in
+     * unit tests, but should not be done in production code. Where possible,
+     * find a way to attach a callback and finish work there, rather than use
+     * this method.
      *
      * @throws InterruptedException
      */
@@ -86,12 +87,11 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
      * Wait for a timeout for the request to be complleted. This is realy for
      * use in unit tests - normal users of this library should use callbacks.
      * <p/>
-     * Note - blocking while waiting for a response defeats the purpose
-     * of using an asynchronous HTTP client;  this sort of thing is
-     * sometimes useful in unit tests, but should not be done in production
-     * code.  Where possible, find a way to
-     * attach a callback and finish work there, rather than use this
-     * method.
+     * Note - blocking while waiting for a response defeats the purpose of using
+     * an asynchronous HTTP client; this sort of thing is sometimes useful in
+     * unit tests, but should not be done in production code. Where possible,
+     * find a way to attach a callback and finish work there, rather than use
+     * this method.
      *
      * @param l A number of time units
      * @param tu Time units
@@ -109,7 +109,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 //        System.out.println("onTimeout");
         cancel(dur);
     }
-    
+
     /**
      * Cancel the associated request. This will make a best-effort, but cannot
      * guarantee, that no state changes will be fired after the final Cancelled.
@@ -119,7 +119,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     public boolean cancel() {
         return cancel(null);
     }
-    
+
     boolean cancel(Duration forTimeout) {
         // We need to send the timeout event before setting the cancelled flag
         if (forTimeout != null && !cancelled.get()) {
@@ -144,7 +144,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         }
         return result;
     }
-    
+
     private volatile Throwable error;
 
     /**
@@ -159,20 +159,25 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         }
         return this;
     }
-    
+
     public final StateType lastState() {
         return lastState.get();
     }
 
     private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
+
     @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {
         Checks.notNull("state", state);
         lastState.set(state.stateType());
         try {
             if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
-//                System.err.println("Suppressing error after cancel");
-                return;
+                if (!(state.get() instanceof RedirectException)) {
+//                    System.err.println("Suppressing error after cancel");
+                    return;
+                } else if (state.get() instanceof RedirectException && ((RedirectException)state.get()).kind() == RedirectException.Kind.INVALID_REDIRECT_URL) {
+                    return;
+                }
             }
             if (state instanceof State.Error) {
                 error = ((State.Error) state).get();

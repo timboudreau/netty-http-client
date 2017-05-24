@@ -92,7 +92,7 @@ final class Initializer extends ChannelInitializer<Channel> {
                 info.handle.event(new State.Error(cause));
             }
 //            super.exceptionCaught(ctx, cause);
-            cause.printStackTrace(System.err);
+//            cause.printStackTrace(System.err);
         }
     }
 }

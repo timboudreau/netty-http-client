@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2014 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,32 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 package com.mastfrog.netty.http.client;
 
-import com.mastfrog.util.thread.Receiver;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import com.mastfrog.util.Exceptions;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFactory;
+import io.netty.channel.EventLoop;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import java.io.IOException;
+import java.nio.channels.SocketChannel;
 
 /**
  *
  * @author Tim Boudreau
  */
-final class HandlerEntry<T> {
+final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
 
-    final Class<? extends State<T>> state;
-    private final Set<Receiver<T>> receivers = new LinkedHashSet<>();
-
-    HandlerEntry(Class<? extends State<T>> state) {
-        this.state = state;
-    }
-
-    void add(Receiver<T> r) {
-        receivers.add(r);
-    }
-
-    void onEvent(State<T> state) {
-        for (Receiver<T> r : receivers) {
-            r.receive(state.get());
+    public NioSocketChannel newChannel() {
+        try {
+            return new NioSocketChannel(SocketChannel.open());
+        } catch (IOException ioe) {
+            return Exceptions.chuck(ioe);
         }
+    }
+
+    public Channel newChannel(EventLoop eventLoop) {
+        return newChannel();
     }
 }

@@ -75,12 +75,12 @@ public class CookieStoreTest {
         req.headers().add(Headers.HOST.name(), "foo.com");
         store.decorate(req);
 
-        List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE.name());
+        List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE_B.name());
         assertEquals(2, cookieHeaders.size());
 
         List<String> find = new LinkedList<>(Arrays.asList("foo", "one"));
         for (String hdr : cookieHeaders) {
-            Cookie cookie = Headers.SET_COOKIE.toValue(hdr);
+            Cookie cookie = Headers.SET_COOKIE_B.toValue(hdr);
             find.remove(cookie.name());
         }
         assertTrue("Not found: " + find, find.isEmpty());

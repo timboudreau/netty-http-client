@@ -35,41 +35,37 @@ import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.ChannelFactory;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoop;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.ssl.SslContext;
-import io.netty.resolver.AddressResolver;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
-import java.io.IOException;
 import java.net.ConnectException;
-import java.nio.channels.SocketChannel;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.joda.time.Duration;
 
 /**
@@ -158,16 +154,20 @@ public final class HttpClient {
     private final SslBootstrapCache sslBootstraps;
     private final MessageHandlerImpl handler;
     private final AddressResolverGroup<?> resolver;
+    private final NioChannelFactory channelFactory = new NioChannelFactory();
 
     public HttpClient() {
-        this(false, 128 * 1024, 12, 8192, 16383, true, null, Collections.<RequestInterceptor>emptyList(), Collections.<ChannelOptionSetting<?>>emptyList(), true, null, null, null, null, null);
+        this(false, 128 * 1024, 12, 8192, 16383, true, null,
+                Collections.<RequestInterceptor>emptyList(),
+                Collections.<ChannelOptionSetting<?>>emptyList(),
+                true, null, null, null, null, null, -1);
     }
 
     /**
      * Create a new HTTP client; prefer HttpClient.builder() where possible, as
      * that is much simpler.HttpClientBuilder will remain backward compatible;
- this constructor may be changed if new parameters are needed (all state
- of an HTTP client is immutable and must be passed to the constructor).
+     * this constructor may be changed if new parameters are needed (all state
+     * of an HTTP client is immutable and must be passed to the constructor).
      *
      * @param compress Enable http compression
      * @param maxChunkSize Max buffer size for chunked encoding
@@ -182,13 +182,19 @@ public final class HttpClient {
      * requests created by this client. May be null.
      * @param settings Netty channel options for
      * @param send100continue If true, requests with payloads will have the
-     * Expect: 100-CONTINUE header set
+     * <code>Expect: 100-CONTINUE</code> header set
      * @param cookies A place to store http cookies, which will be re-sent where
      * appropriate; may be null.
      * @param timeout Maximum time a connection will be open; may be null to
      * keep open indefinitely.
      * @param sslContext Ssl context for secure connections. May be null.
      * @param resolver An alternate DNS resolver (may be null).
+     * @param threadPool The thread pool to use - if null, a private one will be
+     * created
+     * @param maxRedirects The maximum number of redirects that can be
+     * encountered before the client considers itself in a redirect loop and
+     * cancels the request (sending a cancelled event) If -1, the default of 15
+     * will be used.
      * @param managers Trust managers for secure connections. May be empty for
      * default trust manager.
      */
@@ -196,7 +202,8 @@ public final class HttpClient {
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
-            CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver, NioEventLoopGroup threadPool) {
+            CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver,
+            NioEventLoopGroup threadPool, int maxRedirects) {
         group = threadPool == null ? new NioEventLoopGroup(threads, new TF()) : threadPool;
         this.compress = compress;
         this.resolver = resolver;
@@ -207,22 +214,24 @@ public final class HttpClient {
         this.userAgent = userAgent;
         this.interceptors = interceptors == null ? Collections.<RequestInterceptor>emptyList()
                 : new ImmutableList.Builder<RequestInterceptor>()
-                .addAll(interceptors).build();
+                        .addAll(interceptors).build();
         this.settings = settings == null ? Collections.<ChannelOptionSetting<?>>emptySet() : settings;
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
-        this.handler = new MessageHandlerImpl(followRedirects, this);
-        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler, this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress, this.settings, resolver);
+        this.handler = new MessageHandlerImpl(followRedirects, this, maxRedirects);
+        sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler,
+                this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress,
+                this.settings, resolver, channelFactory);
     }
-    
+
     private static class TF implements ThreadFactory {
 
-        private int ct = 0;
+        private int threadsCreated = 0;
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(r, "HttpClient event loop " + ++ct);
+            Thread t = new Thread(r, "HttpClient event loop " + ++threadsCreated);
             t.setDaemon(true);
             return t;
         }
@@ -297,10 +306,6 @@ public final class HttpClient {
         return new RB(Method.OPTIONS);
     }
 
-    static <T> void option(Bootstrap bootstrap, ChannelOptionSetting<T> setting) {
-        bootstrap.option(setting.option(), setting.value());
-    }
-
     @SuppressWarnings("unchecked")
     private synchronized Bootstrap start(HostAndPort hostAndPort) {
         if (bootstrap == null) {
@@ -319,9 +324,9 @@ public final class HttpClient {
                 bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
             }
             for (ChannelOptionSetting<?> setting : settings) {
-                option(bootstrap, setting);
+                setting.apply(bootstrap);
             }
-            bootstrap.channelFactory(new NioChannelFactory());
+            bootstrap.channelFactory(channelFactory);
         }
         return bootstrap;
     }
@@ -346,7 +351,8 @@ public final class HttpClient {
     }
 
     void copyHeaders(HttpRequest from, HttpRequest to, HeaderValueType<?>... exclude) {
-        copy: for (Map.Entry<String, String> e : from.headers().entries()) {
+        copy:
+        for (Map.Entry<String, String> e : from.headers().entries()) {
             String header = e.getKey();
             for (HeaderValueType<?> ex : exclude) {
                 if (ex.name().equalsIgnoreCase(header)) {
@@ -359,7 +365,7 @@ public final class HttpClient {
 
     void redirect(Method method, URL url, RequestInfo info) {
         HttpRequest nue;
-        if (method.toString().equals(info.req.getMethod().toString())) {
+        if (method.toString().equals(info.req.method().toString())) {
             if (info.req instanceof DefaultFullHttpRequest) {
                 DefaultFullHttpRequest dfrq = (DefaultFullHttpRequest) info.req;
                 FullHttpRequest rq;
@@ -371,10 +377,10 @@ public final class HttpClient {
                 rq.setUri(url.getPathAndQuery());
                 nue = rq;
             } else {
-                nue = new DefaultHttpRequest(info.req.getProtocolVersion(), info.req.getMethod(), url.getPathAndQuery());
+                nue = new DefaultHttpRequest(info.req.protocolVersion(), info.req.method(), url.getPathAndQuery());
             }
         } else {
-            nue = new DefaultHttpRequest(info.req.getProtocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
+            nue = new DefaultHttpRequest(info.req.protocolVersion(), HttpMethod.valueOf(method.name()), url.getPathAndQuery());
         }
         copyHeaders(info.req, nue, Headers.HOST);
         nue.headers().set(Headers.HOST.name(), url.getHost().toString());
@@ -430,11 +436,11 @@ public final class HttpClient {
         @Override
         public void run() {
             if (!cancelled.get()) {
-                if (handle != null) {
-                    handle.onTimeout(in.age());
-                }
                 if (r != null) {
                     r.onError(new NoStackTimeoutException(in.timeout.toString()));
+                }
+                if (handle != null) {
+                    handle.onTimeout(in.age());
                 }
             }
             super.cancel();
@@ -448,6 +454,7 @@ public final class HttpClient {
     }
 
     private static class NoStackTimeoutException extends TimeoutException {
+
         // Minor optimization - creating the stack trace is expensive if
         // the stack is deep
         NoStackTimeoutException(String msg) {
@@ -458,54 +465,63 @@ public final class HttpClient {
         public StackTraceElement[] getStackTrace() {
             return new StackTraceElement[0];
         }
-        
+
         @Override
         public synchronized Throwable fillInStackTrace() {
             return this;
         }
     }
 
-    private void submit(final URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle, final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
+    private void submit(final URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle,
+            final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
         if (info != null && info.isExpired()) {
+            // In case of a redirect, we may be called with an info that has
+            // already expired if the timeout set in the builder has elapsed
+            handle.event(new State.Timeout(info.age()));
             cancelled.set(true);
         }
+        // Ensure the cancelled event is sent
         if (cancelled.get()) {
             handle.event(new State.Cancelled());
             return;
         }
+        // Assign a reference to the channel as soon as it is available,
+        // so that we can close it in case of an exception
+        final AtomicReference<Channel> theChannel = new AtomicReference<>();
+        if (!url.isValid() && url.getProblems() != null) {
+            url.getProblems().throwIfFatalPresent("Invalid URL");
+        }
+        // Allow any interceptors to amend or even replace the
+        // request
+        for (RequestInterceptor i : interceptors) {
+            rq = i.intercept(rq);
+        }
+        final HttpRequest req = rq;
         try {
-            for (RequestInterceptor i : interceptors) {
-                rq = i.intercept(rq);
-            }
-            final HttpRequest req = rq;
-            Bootstrap bootstrap;
-            if (url.getProtocol().isSecure()) {
-                bootstrap = startSsl(url.getHostAndPort());
-            } else {
-                bootstrap = start(url.getHostAndPort());
-            }
-            if (!url.isValid()) {
-                throw new IllegalArgumentException(url.getProblems() + "");
-            }
-            TimeoutTimerTask tt = null;
+            Bootstrap bootstrap = url.getProtocol().isSecure() ? startSsl(url.getHostAndPort())
+                    : start(url.getHostAndPort());
+            TimeoutTimerTask timerTask = null;
+            boolean newRequest = info == null;
             if (info == null) {
-                info = new RequestInfo(url, req, cancelled, handle, r, timeout, tt, noAggregate);
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate);
                 if (timeout != null) {
-                    tt = new TimeoutTimerTask(cancelled, handle, r, info);
-                    timer.schedule(tt, timeout.getMillis());
+                    timerTask = new TimeoutTimerTask(cancelled, handle, r, info);
+                    timer.schedule(timerTask, timeout.getMillis());
                 }
-                info.timer = tt;
+                info.timer = timerTask;
             }
             if (info.isExpired()) {
+                // Check expiration again
                 handle.event(new State.Timeout(info.age()));
                 return;
             }
             handle.event(new State.Connecting());
             //XXX who is escaping this?
-            req.setUri(req.getUri().replaceAll("%5f", "_"));
+            req.setUri(req.uri().replaceAll("%5f", "_"));
             ChannelFuture fut = bootstrap.connect(url.getHost().toString(), url.getPort().intValue());
-            if (tt != null) {
-                fut.channel().closeFuture().addListener(tt);
+            theChannel.set(fut.channel());
+            if (timerTask != null) {
+                fut.channel().closeFuture().addListener(timerTask);
             }
             fut.channel().attr(KEY).set(info);
             handle.setFuture(fut);
@@ -515,6 +531,20 @@ public final class HttpClient {
                 }
                 fut.channel().closeFuture().addListener(new AdapterCloseNotifier(url));
             }
+            if (newRequest && r != null) {
+                handle.on(State.Error.class, new Receiver<Throwable>(){
+                    @Override
+                    public void receive(Throwable object) {
+                        r.onError(object);
+                    }
+                });
+                handle.on(StateType.Cancelled, new Receiver<Void>(){
+                    @Override
+                    public void receive(Void object) {
+                        r.onError(new CancellationException("Cancelled"));
+                    }
+                });
+            }
 
             fut.addListener(new ChannelFutureListener() {
 
@@ -523,12 +553,12 @@ public final class HttpClient {
                     if (!future.isSuccess()) {
                         Throwable cause = future.cause();
                         if (cause == null) {
-                            cause = new ConnectException(url.getHost().toString());
+                            cause = new ConnectException("Unknown problem connecting to " + url);
                         }
                         handle.event(new State.Error(cause));
-                        if (r != null) {
-                            r.onError(cause);
-                        }
+//                        if (r != null) {
+//                            r.onError(cause);
+//                        }
                         cancelled.set(true);
                     }
                     if (cancelled.get()) {
@@ -560,22 +590,12 @@ public final class HttpClient {
 
             });
         } catch (Exception ex) {
-            Exceptions.chuck(ex);
-        }
-    }
-
-    static final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
-
-        public NioSocketChannel newChannel() {
-            try {
-                return new NioSocketChannel(SocketChannel.open());
-            } catch (IOException ioe) {
-                return Exceptions.chuck(ioe);
+            Channel ch = theChannel.get();
+            cancelled.set(true);
+            if (ch != null && ch.isRegistered() && ch.isOpen()) {
+                ch.close();
             }
-        }
-
-        public Channel newChannel(EventLoop eventLoop) {
-            return newChannel();
+            Exceptions.chuck(ex);
         }
     }
 
@@ -592,7 +612,7 @@ public final class HttpClient {
             store.extract(headerContainer.headers());
         }
     }
-    
+
     private ByteBufAllocator alloc() {
         for (ChannelOptionSetting<?> setting : this.settings) {
             if (setting.option().equals(ChannelOption.ALLOCATOR)) {
@@ -614,10 +634,10 @@ public final class HttpClient {
             URL u = getURL();
             HttpRequest req = build();
             if (userAgent != null) {
-                req.headers().add(HttpHeaders.Names.USER_AGENT, userAgent);
+                req.headers().add(HttpHeaderNames.USER_AGENT, userAgent);
             }
             if (compress) {
-                req.headers().add(HttpHeaders.Names.ACCEPT_ENCODING, "gzip");
+                req.headers().add(HttpHeaderNames.ACCEPT_ENCODING, "gzip");
             }
             AtomicBoolean cancelled = new AtomicBoolean();
             ResponseFuture handle = new ResponseFuture(cancelled);
@@ -637,7 +657,7 @@ public final class HttpClient {
         }
 
         private <T> HandlerEntry<T> createHandler(Class<? extends State<T>> event, Receiver<T> r) {
-            HandlerEntry<T> result = new HandlerEntry<T>(event);
+            HandlerEntry<T> result = new HandlerEntry<>(event);
             result.add(r);
             return result;
         }
