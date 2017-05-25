@@ -31,6 +31,7 @@ import com.mastfrog.acteur.Page;
 import com.mastfrog.acteur.errors.Err;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
+import static com.mastfrog.acteur.headers.Method.GET;
 import com.mastfrog.acteur.preconditions.Methods;
 import com.mastfrog.acteur.preconditions.Path;
 import com.mastfrog.acteur.server.PathFactory;
@@ -40,17 +41,23 @@ import com.mastfrog.giulius.DependenciesBuilder;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultCookie;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
 import io.netty.handler.codec.http.LastHttpContent;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 import javax.inject.Inject;
 import org.joda.time.Duration;
 
@@ -60,9 +67,10 @@ import org.joda.time.Duration;
  * @author Tim Boudreau
  */
 public class TestModule extends ServerModule<App> {
-    
+
     static {
         System.setProperty("acteur.debug", "true");
+        System.setProperty("internal.gzip", "true");
     }
 
     public TestModule() {
@@ -73,6 +81,7 @@ public class TestModule extends ServerModule<App> {
 
         public App() {
             add(OkPage.class);
+            add(CompressedPage.class);
             add(CookiePage.class);
             add(IncrementalPage.class);
             add(RedirectPage.class);
@@ -98,11 +107,11 @@ public class TestModule extends ServerModule<App> {
         IncrementalCookie(HttpEvent evt) {
             String value = "1";
             Cookie cookie = null;
-            Cookie[] cookies = evt.getHeader(Headers.COOKIE);
+            Cookie[] cookies = evt.getHeader(Headers.COOKIE_B);
             if (cookies != null) {
                 for (Cookie ck : cookies) {
-                    if ("xid".equals(ck.getName())) {
-                        String val = ck.getValue();
+                    if ("xid".equals(ck.name())) {
+                        String val = ck.value();
                         int ival = Integer.parseInt(val) + 1;
                         value = Integer.toString(ival);
                     }
@@ -111,7 +120,7 @@ public class TestModule extends ServerModule<App> {
             DefaultCookie ck = new DefaultCookie("xid", value);
             ck.setMaxAge(500);
             ck.setPath("/ok");
-            add(Headers.SET_COOKIE, ck);
+            add(Headers.SET_COOKIE_B, ck);
             next();
         }
     }
@@ -138,7 +147,7 @@ public class TestModule extends ServerModule<App> {
             DefaultCookie ck = new DefaultCookie(key, value);
             ck.setMaxAge(500);
             ck.setPath(evt.getPath().toStringWithLeadingSlash());
-            add(Headers.SET_COOKIE, ck);
+            add(Headers.SET_COOKIE_B, ck);
             ok(value);
         }
     }
@@ -178,6 +187,7 @@ public class TestModule extends ServerModule<App> {
     @Methods(Method.GET)
     @Path("/redir")
     static class RedirectPage extends Page {
+
         RedirectPage() {
             add(DelayActeur.class);
             add(RedirActeur.class);
@@ -233,6 +243,44 @@ public class TestModule extends ServerModule<App> {
 
         FinalResponseActeur() {
             ok("Got it\n");
+        }
+    }
+
+    @Methods(GET)
+    @Path("/comp")
+    static class CompressedPage extends Page {
+
+        CompressedPage() {
+            add(CompressedActeur.class);
+        }
+    }
+
+    static class CompressedActeur extends Acteur {
+
+        private byte[] bytes;
+
+        @Inject
+        public CompressedActeur(HttpEvent evt) throws IOException {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 1; i <= 100; i++) {
+                sb.append("Test-").append(i).append('\n');
+            }
+            String accepted = evt.getHeader(Headers.ACCEPT_ENCODING);
+            if (accepted == null || !accepted.contains("gzip")) {
+                reply(HttpResponseStatus.BAD_REQUEST, "No Accept-Encoding header - client not "
+                        + "configured for compression");
+                return;
+            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
+                try (PrintStream ps = new PrintStream(gzip)) {
+                    ps.println(sb);
+                }
+            }
+            add(Headers.stringHeader("X-Internal-Compress"), "true");
+            add(Headers.CONTENT_ENCODING, "gzip");
+            bytes = baos.toByteArray();
+            ok(Unpooled.wrappedBuffer(bytes));
         }
     }
 

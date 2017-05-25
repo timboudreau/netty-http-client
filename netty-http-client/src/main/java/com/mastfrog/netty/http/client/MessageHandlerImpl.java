@@ -40,7 +40,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Map;
@@ -197,7 +196,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate, info.chunkedBody);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     if (info.redirectCount.getAndIncrement() < maxRedirects) {
                         URL url;

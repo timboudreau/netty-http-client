@@ -35,6 +35,7 @@ import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
@@ -43,12 +44,16 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
@@ -384,7 +389,7 @@ public final class HttpClient {
         }
         copyHeaders(info.req, nue, Headers.HOST);
         nue.headers().set(Headers.HOST.name(), url.getHost().toString());
-        submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate);
+        submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate, info.chunkedBody);
     }
 
     private Bootstrap bootstrap;
@@ -473,7 +478,7 @@ public final class HttpClient {
     }
 
     private void submit(final URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle,
-            final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate) {
+            final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate, final ChunkedContent chunked) {
         if (info != null && info.isExpired()) {
             // In case of a redirect, we may be called with an info that has
             // already expired if the timeout set in the builder has elapsed
@@ -503,7 +508,7 @@ public final class HttpClient {
             TimeoutTimerTask timerTask = null;
             boolean newRequest = info == null;
             if (info == null) {
-                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate);
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate, chunked);
                 if (timeout != null) {
                     timerTask = new TimeoutTimerTask(cancelled, handle, r, info);
                     timer.schedule(timerTask, timeout.getMillis());
@@ -532,13 +537,13 @@ public final class HttpClient {
                 fut.channel().closeFuture().addListener(new AdapterCloseNotifier(url));
             }
             if (newRequest && r != null) {
-                handle.on(State.Error.class, new Receiver<Throwable>(){
+                handle.on(State.Error.class, new Receiver<Throwable>() {
                     @Override
                     public void receive(Throwable object) {
                         r.onError(object);
                     }
                 });
-                handle.on(StateType.Cancelled, new Receiver<Void>(){
+                handle.on(StateType.Cancelled, new Receiver<Void>() {
                     @Override
                     public void receive(Void object) {
                         r.onError(new CancellationException("Cancelled"));
@@ -577,10 +582,59 @@ public final class HttpClient {
                     future.addListener(new ChannelFutureListener() {
 
                         @Override
-                        public void operationComplete(ChannelFuture future) throws Exception {
+                        public void operationComplete(final ChannelFuture future) throws Exception {
                             if (cancelled.get()) {
                                 future.cancel(true);
                                 future.channel().close();
+                            }
+                            if (chunked != null) {
+                                handle.on(State.HeadersReceived.class, new Receiver<HttpResponse>() {
+                                    boolean first = true;
+
+                                    @Override
+                                    public void receive(HttpResponse object) {
+                                        if (first && (HttpResponseStatus.CONTINUE.equals(object.status()) || !send100continue)) {
+                                            first = false;
+                                            ChannelFutureListener flusher = new ChannelFutureListener() {
+                                                int count = 0;
+
+                                                @Override
+                                                public void operationComplete(ChannelFuture f) throws Exception {
+                                                    if (cancelled.get()) {
+                                                        if (f != null) {
+                                                            f.cancel(true);
+                                                            f.channel().close();
+                                                            return;
+                                                        } else {
+                                                            future.cancel(true);
+                                                            future.channel().close();
+                                                        }
+                                                    }
+                                                    if (f != null && f.cause() != null) {
+                                                        handle.event(new State.Error(f.cause()));
+                                                        f.channel().close();
+                                                    }
+                                                    Channel ch = f == null ? future.channel() : f.channel();
+                                                    Object chunk = chunked.nextChunk(count++);
+                                                    if (chunk != null) {
+                                                        if (chunk instanceof ByteBuf) {
+                                                            chunk = new DefaultHttpContent((ByteBuf) chunk);
+                                                        }
+                                                        ch.writeAndFlush(chunk).addListener(this);
+                                                    } else {
+                                                        ch.writeAndFlush(new DefaultLastHttpContent());
+                                                        handle.event(new State.AwaitingResponse());
+                                                    }
+                                                }
+                                            };
+                                            try {
+                                                flusher.operationComplete(null);
+                                            } catch (Exception ex) {
+                                                Exceptions.chuck(ex);
+                                            }
+                                        }
+                                    }
+                                });
                             }
                             handle.event(new State.AwaitingResponse());
                         }
@@ -652,7 +706,7 @@ public final class HttpClient {
                         = createHandler(State.HeadersReceived.class, new StoreHandler(theStore));
                 handle.handlers.add(entry);
             }
-            submit(u, req, cancelled, handle, r, null, this.timeout, noAggregate);
+            submit(u, req, cancelled, handle, r, null, this.timeout, noAggregate, chunkedContent());
             return handle;
         }
 

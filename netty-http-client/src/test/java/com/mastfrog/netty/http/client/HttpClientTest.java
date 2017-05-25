@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -36,15 +36,18 @@ import com.mastfrog.tiny.http.server.TinyHttpServer;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
-import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
 import io.netty.util.CharsetUtil;
 import java.security.cert.CertificateException;
@@ -61,8 +64,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLException;
 import org.junit.After;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
-import static org.junit.Assert.*;
 import org.junit.Before;
 import org.netbeans.validation.api.InvalidInputException;
 
@@ -81,6 +87,7 @@ public class HttpClientTest {
         client = HttpClient.builder()
                 .resolver(new LocalhostOnlyAddressResolverGroup())
                 .followRedirects()
+                .useCompression()
                 .setMaxRedirects(5)
                 .build();
     }
@@ -90,6 +97,65 @@ public class HttpClientTest {
         Thread.sleep(200);
         server.shutdown();
         client.shutdown();
+    }
+
+    @Test
+    public void testChunkedPut() throws Throwable {
+        final CountDownLatch latch = new CountDownLatch(1);
+        ChunkedBody body = new ChunkedBody();
+        final AtomicReference<String> content = new AtomicReference<>();
+        final AtomicReference<HttpResponseStatus> theStatus = new AtomicReference<>();
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        client.put().setURL("http://chunky.thing:" + server.httpPort() + "/").setBody(body, MediaType.PLAIN_TEXT_UTF_8)
+                .onEvent(new Receiver<State<?>>() {
+                    @Override
+                    public void receive(State<?> state) {
+                        if (state.stateType() == StateType.Closed) {
+                            latch.countDown();
+                        }
+                    }
+                })
+                .execute(new ResponseHandler<String>(String.class) {
+                    @Override
+                    protected void receive(HttpResponseStatus status, HttpHeaders headers, String responseBody) {
+                        theStatus.set(status);
+                        content.set(responseBody);
+                    }
+
+                    @Override
+                    protected void onError(Throwable err) {
+                        thrown.set(err);
+                        err.printStackTrace(System.out);
+                    }
+
+                    @Override
+                    protected void onErrorResponse(HttpResponseStatus status, HttpHeaders headers, String content) {
+                        theStatus.set(status);
+                    }
+
+                }).await(5, TimeUnit.SECONDS);
+        latch.await(10, TimeUnit.SECONDS);
+        server.throwLast();
+        if (thrown.get() != null) {
+            throw thrown.get();
+        }
+        assertEquals(CREATED, theStatus.get());
+        assertEquals("You sent:\n" + body.content, content.get());
+    }
+
+    static final class ChunkedBody implements ChunkedContent {
+
+        StringBuilder content = new StringBuilder();
+
+        @Override
+        public Object nextChunk(int callCount) {
+            if (callCount < 10) {
+                String line = "Chunk-" + (callCount + 1) + "\n";
+                content.append(line);
+                return Unpooled.wrappedBuffer(line.getBytes(CharsetUtil.UTF_8));
+            }
+            return null;
+        }
     }
 
     @Test
@@ -218,7 +284,7 @@ public class HttpClientTest {
     }
 
     @Test
-    public void testPost() throws Exception, Throwable {
+    public void testPost() throws Throwable {
         final AM am = new AM();
         final String ur = "http://foo.bar:" + server.httpPort() + "/foo";
         client.addActivityMonitor(am);
@@ -349,6 +415,8 @@ public class HttpClientTest {
                     return redirectForever(req, response);
                 case "messy.re":
                     return relativeRedirect(req, response);
+                case "chunky.thing":
+                    return chunkedPut(req, response);
                 default:
                     throw new AssertionError("Unknown host header: " + req.headers().get(HttpHeaderNames.HOST));
             }
@@ -384,6 +452,20 @@ public class HttpClientTest {
             buf.getBytes(0, bytes);
             String body = new String(bytes, CharsetUtil.UTF_8);
             return "Hey you, " + body;
+        }
+
+        private Object chunkedPut(HttpRequest req, ResponseHead response) throws Exception {
+            if (!(req instanceof FullHttpRequest)) {
+                throw new IllegalStateException("Wrong type: " + req.getClass().getName() + " - " + req);
+            }
+            FullHttpRequest hreq = (FullHttpRequest) req;
+            response.header(CONTENT_TYPE).set("text/plain");
+            ByteBuf buf = hreq.content();
+            byte[] bytes = new byte[buf.readableBytes()];
+            buf.getBytes(0, bytes);
+            String body = new String(bytes, CharsetUtil.UTF_8);
+            response.status(CREATED);
+            return "You sent:\n" + body;
         }
 
         private Object cancelResponse(HttpRequest req, ResponseHead response) throws Exception {

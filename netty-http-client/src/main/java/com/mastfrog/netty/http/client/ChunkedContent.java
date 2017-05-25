@@ -21,35 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.tiny.http.server;
 
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.http.HttpContentCompressor;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.ssl.SslContext;
+package com.mastfrog.netty.http.client;
 
-final class TinyHttpServerInitializer extends ChannelInitializer<SocketChannel> {
-
-    private final SslContext sslCtx;
-    private final TinyHttpServerHandler handler;
-
-    public TinyHttpServerInitializer(SslContext sslCtx, TinyHttpServerHandler handler) {
-        this.sslCtx = sslCtx;
-        this.handler = handler;
-    }
-
-    @Override
-    public void initChannel(SocketChannel ch) {
-        ChannelPipeline p = ch.pipeline();
-        if (sslCtx != null) {
-            p.addLast(sslCtx.newHandler(ch.alloc()));
-        }
-        p.addLast(new HttpServerCodec());
-        p.addLast(new HttpObjectAggregator(65535));
-        p.addLast(new HttpContentCompressor(9));
-        p.addLast(handler);
-    }
+/**
+ *
+ * @author Tim Boudreau
+ */
+public interface ChunkedContent {
+    public Object nextChunk(int callCount);
 }
