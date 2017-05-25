@@ -29,7 +29,6 @@ import com.mastfrog.acteur.util.BasicCredentials;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
-import com.mastfrog.acteur.util.Connection;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.url.URLBuilder;
@@ -167,7 +166,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     }
 
     private boolean noConnectionHeader;
-    
+
     public RequestBuilder noConnectionHeader() {
         noConnectionHeader = true;
         return this;
@@ -183,6 +182,10 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     public RequestBuilder setCookieStore(CookieStore store) {
         this.store = store;
         return this;
+    }
+    
+    ChunkedContent chunkedContent() {
+        return body.getB();
     }
 
     public HttpRequest build() {
@@ -205,23 +208,27 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             uri = "/";
         }
         HttpMethod mth = HttpMethod.valueOf(method.name());
-        DefaultHttpRequest h = body == null
+        DefaultHttpRequest h = !body.isA()
                 ? new DefaultHttpRequest(version, mth, uri)
-                : new DefaultFullHttpRequest(version, mth, uri, body);
+                : new DefaultFullHttpRequest(version, mth, uri, body.getA());
         for (Entry<?> e : entries) {
             e.addTo(h.headers());
         }
         if (!noHostHeader) {
-            h.headers().add(HttpHeaders.Names.HOST, u.getHost().toString());
+            h.headers().add(HttpHeaderNames.HOST, u.getHost().toString());
+        }
+        if (!h.headers().contains(HttpHeaderNames.CONNECTION) && !noConnectionHeader) {
+            h.headers().add(HttpHeaderNames.CONNECTION, "close");
+        }
+
+        if (!noDateHeader) {
+            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toString(DateTime.now()));
         }
         boolean hasConnectionHeader = h.headers().contains(HttpHeaders.Names.CONNECTION);
         if (!noConnectionHeader && !hasConnectionHeader) {
             h.headers().add(HttpHeaders.Names.CONNECTION, Connection.close.toString());
         } else if (!hasConnectionHeader) {
             h.headers().add(HttpHeaders.Names.CONNECTION, Connection.keep_alive.toString());
-        }
-        if (!noDateHeader) {
-            h.headers().add(HttpHeaders.Names.DATE, Headers.DATE.toString(DateTime.now()));
         }
         if (store != null) {
             store.decorate(h);
@@ -233,46 +240,64 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         return url.create();
     }
 
-    private ByteBuf body;
+    private Either<ByteBuf, ChunkedContent> body = new Either<>(ByteBuf.class, ChunkedContent.class);
     boolean send100Continue = true;
 
     @Override
-    public HttpRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
-        if (o instanceof CharSequence) {
-            CharSequence seq = (CharSequence) o;
-            setBody(seq.toString().getBytes(CharsetUtil.UTF_8), contentType);
-        } else if (o instanceof byte[]) {
-            byte[] b = (byte[]) o;
+    public HttpRequestBuilder setBody(Object bodyObject, MediaType contentType) throws IOException {
+        Checks.notNull("body", bodyObject);
+        if (bodyObject instanceof CharSequence) {
+            CharSequence seq = (CharSequence) bodyObject;
+            Charset cs = contentType.charset().isPresent() ? contentType.charset().get() : 
+                    CharsetUtil.UTF_8;
+            setBody(seq.toString().getBytes(cs), contentType);
+        } else if (bodyObject instanceof byte[]) {
+            byte[] b = (byte[]) bodyObject;
             ByteBuf buffer = alloc.buffer(b.length).writeBytes(b);
             setBody(buffer, contentType);
-        } else if (o instanceof ByteBuf) {
-            body = (ByteBuf) o;
+        } else if (bodyObject instanceof ByteBuf) {
+            ByteBuf buf = (ByteBuf) bodyObject;
+            body.set(buf);
             if (send100Continue) {
-                addHeader(Headers.stringHeader(HttpHeaders.Names.EXPECT), HttpHeaders.Values.CONTINUE);
+                addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT.toString()), HttpHeaderValues.CONTINUE.toString());
             }
-            addHeader(Headers.CONTENT_LENGTH, (long) body.readableBytes());
+            addHeader(Headers.CONTENT_LENGTH, (long) buf.readableBytes());
             addHeader(Headers.CONTENT_TYPE, contentType);
-        } else if (o instanceof InputStream) {
+        } else if (bodyObject instanceof ChunkedContent) {
+            body.setB((ChunkedContent) bodyObject);
+            if (send100Continue) {
+                addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT.toString()), HttpHeaderValues.CONTINUE.toString());
+            }
+            addHeader(Headers.CONTENT_TYPE, contentType);
+            addHeader(Headers.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED.toString());
+        } else if (bodyObject instanceof InputStream) {
             ByteBuf buf = newByteBuf();
             try (ByteBufOutputStream out = new ByteBufOutputStream(buf)) {
-                try (InputStream in = (InputStream) o) {
+                try (InputStream in = (InputStream) bodyObject) {
                     Streams.copy(in, out, 1024);
                 }
             }
             setBody(buf, contentType);
-        } else if (o instanceof RenderedImage) {
+        } else if (bodyObject instanceof RenderedImage) {
             ByteBuf buf = newByteBuf();
             try (ByteBufOutputStream out = new ByteBufOutputStream(buf)) {
                 String type = contentType.subtype();
                 if ("jpeg".equals(type)) {
                     type = "jpg";
                 }
-                ImageIO.write((RenderedImage) o, type, out);
+                List<String> formats = Arrays.asList(ImageIO.getWriterFormatNames());
+                if (!formats.contains(type)) {
+                    System.err.println("Cannot convert image to " + contentType
+                            + " - substituting jpeg.");
+                    type = "jpg";
+                    contentType = MediaType.JPEG;
+                }
+                ImageIO.write((RenderedImage) bodyObject, type, out);
             }
             setBody(buf, contentType);
         } else {
             try {
-                setBody(new ObjectMapper().writeValueAsBytes(o), contentType);
+                setBody(new ObjectMapper().writeValueAsBytes(bodyObject), contentType);
             } catch (Exception ex) {
                 throw new IllegalArgumentException(ex);
             }

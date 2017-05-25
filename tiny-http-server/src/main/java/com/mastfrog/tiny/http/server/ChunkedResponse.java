@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.netty.http.client;
 
-import io.netty.handler.codec.http.HttpRequest;
+package com.mastfrog.tiny.http.server;
 
 /**
- * Object which can be attached to an HttpClient which intercept all requests
- * and can modify them before they are sent
+ * An HTTP response which is chunked.
  *
  * @author Tim Boudreau
  */
-public interface RequestInterceptor {
-    HttpRequest intercept(HttpRequest req);
+public interface ChunkedResponse {
+
+    /**
+     * Get the next chunk of content, returning null when the response
+     * is complete.
+     * 
+     * @param callCount The number of times this method has been called for
+     * this particular request.
+     * @return An object which may be a ByteBuf, byte[], CharSequence, etc.
+     */
+    public Object nextChunk(int callCount);
 }

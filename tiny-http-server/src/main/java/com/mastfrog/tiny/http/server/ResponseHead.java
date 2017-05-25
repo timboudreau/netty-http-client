@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,49 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.netty.http.client;
+package com.mastfrog.tiny.http.server;
 
-import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
- * Object which can be attached to an HttpClient which intercept all requests
- * and can modify them before they are sent
+ * Passed to responders to set headers and the code and http version.
  *
  * @author Tim Boudreau
  */
-public interface RequestInterceptor {
-    HttpRequest intercept(HttpRequest req);
+public final class ResponseHead {
+
+    int code = 200;
+    final Map<CharSequence, Object> headers = new LinkedHashMap<>();
+
+    HttpVersion version = HttpVersion.HTTP_1_1;
+
+    public ValueReceiver header(final CharSequence header) {
+        return (val) -> {
+            headers.put(header, val);
+            return ResponseHead.this;
+        };
+    }
+
+    public ResponseHead httpVersion(HttpVersion version) {
+        this.version = version;
+        return this;
+    }
+
+    public ResponseHead status(HttpResponseStatus status) {
+        this.code = status.code();
+        return this;
+    }
+
+    public ResponseHead status(int code) {
+        this.code = code;
+        return this;
+    }
+
+    public interface ValueReceiver {
+
+        ResponseHead set(Object val);
+    }
 }

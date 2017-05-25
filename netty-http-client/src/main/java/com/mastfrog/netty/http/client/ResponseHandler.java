@@ -140,7 +140,7 @@ public abstract class ResponseHandler<T> {
     }
 
     protected void onError(Throwable err) {
-        err.printStackTrace();
+//        err.printStackTrace();
     }
 
     public Class<T> type() {

@@ -24,8 +24,8 @@
 package com.mastfrog.netty.http.client;
 
 import com.mastfrog.acteur.headers.Headers;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultCookie;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
@@ -63,8 +63,8 @@ public class CookieStoreTest {
         ck2.setMaxAge(10000);
 
         DefaultFullHttpResponse resp = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        resp.headers().add(Headers.SET_COOKIE.name(), Headers.SET_COOKIE.toString(ck1));
-        resp.headers().add(Headers.SET_COOKIE.name(), Headers.SET_COOKIE.toString(ck2));
+        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toString(ck1));
+        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toString(ck2));
 
         store.extract(resp.headers());
         Iterator<Cookie> iter = store.iterator();
@@ -75,13 +75,13 @@ public class CookieStoreTest {
         req.headers().add(Headers.HOST.name(), "foo.com");
         store.decorate(req);
 
-        List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE.name());
+        List<String> cookieHeaders = req.headers().getAll(Headers.COOKIE_B.name());
         assertEquals(2, cookieHeaders.size());
 
         List<String> find = new LinkedList<>(Arrays.asList("foo", "one"));
         for (String hdr : cookieHeaders) {
-            Cookie cookie = Headers.SET_COOKIE.toValue(hdr);
-            find.remove(cookie.getName());
+            Cookie cookie = Headers.SET_COOKIE_B.toValue(hdr);
+            find.remove(cookie.name());
         }
         assertTrue("Not found: " + find, find.isEmpty());
 

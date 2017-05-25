@@ -60,12 +60,12 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
 import io.netty.handler.codec.http.Cookie;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.fail;
 
 /**
@@ -818,7 +818,7 @@ public class TestHarness implements ErrorInterceptor {
             } else {
                 ObjectMapper m = mapper;
                 try {
-                    return m.readValue(new ByteBufInputStream(buf), type);
+                    return m.readValue((InputStream)new ByteBufInputStream(buf), type);
                 } catch (JsonParseException | JsonMappingException ex) {
                     buf.resetReaderIndex();
                     String data = bufToString(buf);

@@ -25,9 +25,12 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -108,7 +111,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 //        System.out.println("onTimeout");
         cancel(dur);
     }
-
+    
     /**
      * Cancel the associated request. This will make a best-effort, but cannot
      * guarantee, that no state changes will be fired after the final Cancelled.
@@ -118,7 +121,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     public boolean cancel() {
         return cancel(null);
     }
-
+    
     boolean cancel(Duration forTimeout) {
         // We need to send the timeout event before setting the cancelled flag
         if (forTimeout != null && !cancelled.get()) {
@@ -130,9 +133,9 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
                 Future<Channel> fut = future;
                 if (fut != null) {
                     Channel channel = fut.getNow();
-                    if (fut != null) {
-                        fut.cancel(true);
-                    }
+                if (fut != null) {
+                    fut.cancel(true);
+                }
                     if (channel != null && channel.isOpen()) {
                         channel.close();
                     }
@@ -146,7 +149,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         }
         return result;
     }
-
+    
     private volatile Throwable error;
 
     /**
@@ -161,21 +164,24 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         }
         return this;
     }
-
+    
     public final StateType lastState() {
         return lastState.get();
     }
 
     private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
-
     @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {
         Checks.notNull("state", state);
         lastState.set(state.stateType());
         try {
             if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
+                if (!(state.get() instanceof RedirectException)) {
 //                System.err.println("Suppressing error after cancel");
                 return;
+                } else if (state.get() instanceof RedirectException && ((RedirectException)state.get()).kind() == RedirectException.Kind.INVALID_REDIRECT_URL) {
+                    return;
+                }
             }
             if (state instanceof State.Error) {
                 error = ((State.Error) state).get();

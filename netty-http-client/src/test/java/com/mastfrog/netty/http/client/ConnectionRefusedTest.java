@@ -23,9 +23,11 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.google.common.collect.Sets;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,36 +43,40 @@ public class ConnectionRefusedTest {
 
     @Test
     public void testTimeout() throws Throwable {
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(2);
         HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
+        final Set<StateType> states = Sets.newConcurrentHashSet();
         client.get().setTimeout(new Duration(2)).setURL("http://10.0.0.0/abcd")
                 .onEvent(new Receiver<State<?>>() {
 
                     @Override
                     public void receive(State<?> object) {
-                        System.out.println("1STATE " + object);
+                        states.add(object.stateType());
+                        if (object.stateType() == StateType.Timeout) {
+                            latch.countDown();
+                        }
+//                        System.out.println("1STATE " + object);
+                        
                     }
                 }).execute(new ResponseHandler<Object>(Object.class) {
 
             @Override
             protected void receive(Object obj) {
-                System.out.println("RECEIVE " + obj);
                 notified.set(true);
                 latch.countDown();
             }
 
             @Override
             protected void onError(Throwable err) {
-                System.out.println("onError");
-                err.printStackTrace();
                 notified.set(true);
                 latch.countDown();
             }
 
         }).await(10, TimeUnit.SECONDS);
-        Thread.sleep(3000);
+        latch.await(5, TimeUnit.SECONDS);
         assertTrue(notified.get());
+        assertTrue(states.contains(StateType.Timeout));
     }
 
     @Test
@@ -83,14 +89,14 @@ public class ConnectionRefusedTest {
 
                     @Override
                     public void receive(State<?> object) {
-                        System.out.println("2STATE " + object);
+//                        System.out.println("2STATE " + object);
                     }
                 })
                 .execute(new ResponseHandler<Object>(Object.class) {
 
                     @Override
                     protected void onError(Throwable err) {
-                        err.printStackTrace();
+//                        err.printStackTrace();
                         notified.set(true);
                         latch.countDown();
                     }
@@ -112,7 +118,6 @@ public class ConnectionRefusedTest {
 
                     @Override
                     protected void receive(HttpResponseStatus status, Object obj) {
-                        super.receive(status, obj); //To change body of generated methods, choose Tools | Templates.
                     }
                 }).await(1, TimeUnit.SECONDS);
         latch.await(20, TimeUnit.SECONDS);

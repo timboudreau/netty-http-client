@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2016 tim.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,36 +24,25 @@
 
 package com.mastfrog.netty.http.client;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-
 /**
  *
  * @author Tim Boudreau
  */
-public abstract class CallbackRequestBody {
+public class RedirectException extends Exception {
 
-    public abstract CallbackResult onPublish(ChannelHandlerContext ctx);
+    private final Kind kind;
 
-    protected final CallbackResult chunk(String data, boolean last) {
-        return null;
+    public enum Kind {
+        REDIRECT_LOOP,
+        INVALID_REDIRECT_URL
     }
-
-    public static final class CallbackResult {
-        private final CallbackStatus status;
-        private final ByteBuf data;
-        private final Throwable error;
-
-        private CallbackResult(CallbackStatus status, ByteBuf data, Throwable error) {
-            this.status = status;
-            this.data = data;
-            this.error = error;
-        }
+    
+    RedirectException(Kind kind, String url) {
+        super(url);
+        this.kind = kind;
     }
-
-    public enum CallbackStatus {
-        CALL_WHEN_FLUSHED,
-        ERROR,
-        END
+    
+    public Kind kind() {
+        return kind;
     }
 }

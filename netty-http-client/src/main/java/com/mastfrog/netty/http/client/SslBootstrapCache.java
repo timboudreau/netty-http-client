@@ -35,9 +35,9 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.SslContext;
+import io.netty.resolver.AddressResolverGroup;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.TrustManager;
 import org.joda.time.Duration;
 
 /**
@@ -47,7 +47,12 @@ import org.joda.time.Duration;
 final class SslBootstrapCache {
 
     private final Ldr ldr = new Ldr();
-    private final LoadingCache<HostAndPort, Bootstrap> bootstrapForHostPort = CacheBuilder.<HostAndPort, Bootstrap>newBuilder().concurrencyLevel(2).removalListener(ldr).expireAfterAccess(2, TimeUnit.MINUTES).build(ldr);
+    private final LoadingCache<HostAndPort, Bootstrap> bootstrapForHostPort = 
+            CacheBuilder.<HostAndPort, Bootstrap>newBuilder()
+                    .concurrencyLevel(2)
+                    .removalListener(ldr)
+                    .expireAfterAccess(2, TimeUnit.MINUTES)
+                    .build(ldr);
     private final EventLoopGroup group;
     private final Duration timeout;
     private final SslContext sslContext;
@@ -57,8 +62,12 @@ final class SslBootstrapCache {
     private final int maxHeadersSize;
     private final boolean compress;
     private final Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings;
+    private final AddressResolverGroup<?> resolver;
+    private final NioChannelFactory channelFactory;
     SslBootstrapCache(EventLoopGroup group, Duration timeout, SslContext sslContext, MessageHandlerImpl handler,
-            int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings) {
+            int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, 
+            Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings, AddressResolverGroup<?> resolver,
+            NioChannelFactory channelFactory) {
         this.group = group;
         this.timeout = timeout;
         this.sslContext = sslContext;
@@ -68,6 +77,8 @@ final class SslBootstrapCache {
         this.maxHeadersSize = maxHeadersSize;
         this.compress = compress;
         this.settings = settings;
+        this.resolver = resolver;
+        this.channelFactory = channelFactory;
     }
 
     Bootstrap sslBootstrap(HostAndPort hostAndPort) {
@@ -92,14 +103,17 @@ final class SslBootstrapCache {
             bootstrapSsl.handler(new Initializer(k, handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
             bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
+            if (resolver != null) {
+                bootstrapSsl.resolver(resolver);
+            }
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             if (timeout != null) {
                 bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
             }
             for (HttpClientBuilder.ChannelOptionSetting<?> setting : settings) {
-                HttpClient.option(bootstrapSsl, setting);
+                setting.apply(bootstrapSsl);
             }
-            bootstrapSsl.channelFactory(new HttpClient.NioChannelFactory());
+            bootstrapSsl.channelFactory(channelFactory);
             return bootstrapSsl;
         }
 

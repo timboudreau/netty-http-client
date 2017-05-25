@@ -23,27 +23,37 @@
  */
 package com.timboudreau.netty.http.client.tests;
 
+import com.google.inject.AbstractModule;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.giulius.tests.GuiceRunner;
 import com.mastfrog.giulius.tests.TestWith;
 import com.mastfrog.netty.http.client.CookieStore;
+import com.mastfrog.netty.http.client.HttpClient;
+import com.mastfrog.netty.http.client.ResponseHandler;
 import com.mastfrog.netty.http.client.StateType;
 import com.mastfrog.netty.http.test.harness.TestHarness;
 import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.thread.Receiver;
+import com.timboudreau.netty.http.client.tests.TestModuleTest.M;
 import io.netty.buffer.ByteBufInputStream;
-import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import io.netty.handler.codec.http.LastHttpContent;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.runner.RunWith;
@@ -54,9 +64,50 @@ import org.junit.runner.RunWith;
  *
  * @author Tim Boudreau
  */
-@TestWith({TestHarnessModule.class, TestModule.class})
+@TestWith({TestHarnessModule.class, TestModule.class, M.class})
 @RunWith(GuiceRunner.class)
 public class TestModuleTest {
+    
+    static final class M extends AbstractModule {
+
+        @Override
+        protected void configure() {
+            bind(HttpClient.class).toInstance(HttpClient.builder().useCompression().build());
+        }
+        
+    }
+
+    @Test
+    public void testCompression(TestHarness harn) throws InterruptedException {
+        final AtomicReference<String> content = new AtomicReference<>();
+        final AtomicReference<HttpHeaders> hdrs = new AtomicReference<>();
+        final AtomicReference<HttpResponseStatus> stat = new AtomicReference<>();
+        harn.get("/comp") /*.addHeader(Headers.ACCEPT_ENCODING, "gzip") */
+                .execute(new ResponseHandler<String>(String.class) {
+                    @Override
+                    protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
+                        hdrs.set(headers);
+                        stat.set(status);
+                        content.set(obj);
+                    }
+                }).await(10, TimeUnit.SECONDS);
+
+        assertNotNull(hdrs.get());
+        System.out.println("RESPONSE HEADERS:");
+        for (Map.Entry<String,String> e : hdrs.get().entries()) {
+            System.out.println(" " + e.getKey() + ": " + e.getValue());
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= 100; i++) {
+            sb.append("Test-").append(i).append('\n');
+        }
+        sb.append("\n");
+        assertEquals(OK, stat.get());
+        assertEquals(sb.toString(), content.get());
+//        assertEquals("gzip", hdrs.get().get(HttpHeaderNames.CONTENT_ENCODING));
+        
+    }
+    /*
 
     @Test
     public void test(TestHarness harn) throws Throwable {
@@ -108,6 +159,7 @@ public class TestModuleTest {
         Thread.sleep(2000);
         assertFalse(full.called);
     }
+*/
 
     static class R extends Receiver<HttpContent> {
 

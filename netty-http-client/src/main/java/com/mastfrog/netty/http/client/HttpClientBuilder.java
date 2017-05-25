@@ -24,8 +24,6 @@
 package com.mastfrog.netty.http.client;
 
 import com.mastfrog.util.Checks;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import java.util.Iterator;
@@ -41,7 +39,8 @@ import org.joda.time.Duration;
  */
 public final class HttpClientBuilder {
 
-    private int threadCount = 4;
+    private static final int DEFAULT_THREAD_COUNT = 4;
+    private int threadCount = -1;
     private int maxChunkSize = 65536;
     private boolean compression = false;
     private int maxInitialLineLength = 2048;
@@ -53,8 +52,10 @@ public final class HttpClientBuilder {
     private CookieStore cookies;
     private Duration timeout;
     private SslContext sslContext;
+    private AddressResolverGroup<? extends SocketAddress> resolver;
+    private NioEventLoopGroup group;
+    private int maxRedirects = -1;
     private int poolSize = 0;
-    private ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
 
     public HttpClientBuilder setSslContext(SslContext ctx) {
         this.sslContext = ctx;
@@ -62,22 +63,24 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * Add A trust manager for SSL connections.
-     * @param mgr a trust manager
+     * Set the SSL context to use when accessing HTTPS addresses. In particular,
+     * use this if you want to abort untrusted connections.
+     *
+     * @param ctx The context
      * @return this
      * @deprecated Does nothing as of 1.6.1.3-dev / Netty 4.0.28
      */
-    @Deprecated
-    public HttpClientBuilder addTrustManager(TrustManager mgr) {
+    public HttpClientBuilder setSslContext(SslContext ctx) {
+        this.sslContext = ctx;
         return this;
     }
 
     /**
-     * Set the timeout for requests.  Note that this timeout
-     * is independent of the timeout that can be set individually on
-     * requests, but whichever timeout is shorter will take precedence.
-     * The default is no timeout.
-     * @param timeout The timeout
+     * Set the timeout for requests. Note that this timeout is independent of
+     * the timeout that can be set individually on requests, but whichever
+     * timeout is shorter will take precedence. The default is no timeout.
+     *
+     * @param timeout The timeout, or null for no timeout (the default)
      * @return This
      */
     public HttpClientBuilder setTimeout(Duration timeout) {
@@ -119,6 +122,7 @@ public final class HttpClientBuilder {
 
     /**
      * Turn off following of redirects
+     *
      * @return this
      */
     public HttpClientBuilder dontFollowRedirects() {
@@ -127,10 +131,10 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * The number of worker threads for processing requests and responses.
-     * Netty is asynchronous, so you do not need as many threads as you will
-     * have simultaneous requests;  the default is 4.  Best to see if you
-     * have problems, and increase this value only if it makes a measurable
+     * The number of worker threads for processing requests and responses. Netty
+     * is asynchronous, so you do not need as many threads as you will have
+     * simultaneous requests; the default is 4. Best to see if you have
+     * problems, and increase this value only if it makes a measurable
      * improvement in throughput.
      *
      * @param count The number of threads
@@ -138,43 +142,58 @@ public final class HttpClientBuilder {
      */
     public HttpClientBuilder threadCount(int count) {
         Checks.nonNegative("threadCount", count);
+        Checks.nonZero("threadCount", count);
+        if (group != null) {
+            throw new IllegalStateException("Cannot set threadCount if you are"
+                    + " providing the NioEventLoopGroup");
+        }
         this.threadCount = count;
         return this;
     }
 
     /**
      * The maximum size of a chunk in bytes.  The default is 64K.
+     *
      * @param bytes A number of bytes
      * @return this
      */
     public HttpClientBuilder maxChunkSize(int bytes) {
         Checks.nonNegative("bytes", bytes);
+        Checks.nonZero("bytes", bytes);
         this.maxChunkSize = bytes;
         return this;
     }
 
     /**
      * Set the maximum length of the HTTP initial line, e.g.
-     * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be
-     * sending extremely long URLs, the default of 2048 should be plenty.
+     * <code>HTTP/1.1 GET /path/to/something</code>. Unless you will be sending
+     * extremely long URLs, the default of 2048 should be plenty.
+     *
      * @param max
      * @return this
      */
     public HttpClientBuilder maxInitialLineLength(int max) {
+        Checks.nonZero("max", max);
+        Checks.nonNegative("max", max);
         maxInitialLineLength = max;
         return this;
     }
+
     /**
      * Set the maximum size of headers in bytes
+     *
      * @return this
      */
     public HttpClientBuilder maxHeadersSize(int max) {
+        Checks.nonZero("max", max);
+        Checks.nonNegative("max", max);
         maxHeadersSize = max;
         return this;
     }
 
     /**
      * Turn on HTTP gzip or deflate compression
+     *
      * @return this
      */
     public HttpClientBuilder useCompression() {
@@ -184,6 +203,7 @@ public final class HttpClientBuilder {
 
     /**
      * Turn off HTTP gzip or deflate compression
+     *
      * @return this
      */
     public HttpClientBuilder noCompression() {
@@ -192,66 +212,102 @@ public final class HttpClientBuilder {
     }
 
     /**
+     * For test environments using multiple host names - attaches a DNS resolver
+     * that will resolve all host name addresses to
+     * <code>InetAddress.getLocalHost()</code>.
+     *
+     * @return this
+     */
+    public HttpClientBuilder resolveAllHostsToLocalhost() {
+        return resolver(new LocalhostOnlyAddressResolverGroup());
+    }
+
+    /**
+     * Set the DNS resolver to use, bypassing the default one.the passed
+     * resolver will be used to resolve <i>all</i> host names by the resulting
+     * HttpClient.
+     *
+     * @param resolver The addresss setEventLoopGroup resolver
+     * @return this
+     */
+    public HttpClientBuilder resolver(AddressResolverGroup<? extends SocketAddress> resolver) {
+        this.resolver = resolver;
+        return this;
+    }
+
+    /**
+     * Set the DNS resolver to use, bypassing the default one.the passed
+     * resolver will be used to resolve <i>all</i> host names by the resulting
+     * HttpClient.
+     *
+     * @param <T> The type of address the resolver resolves
+     * @param resolver The addresss setEventLoopGroup resolver
+     * @return this
+     */
+    public <T extends SocketAddress> HttpClientBuilder resolver(AddressResolver<T> resolver) {
+        return resolver(new OneResolverGroup<>(resolver));
+    }
+
+    /**
+     * Set the maximum number of redirects this client can encounter before it
+     * considers itself to be in a redirect loop and cancels the request,
+     * sending a cancelled event.
+     *
+     * @param maxRedirects The maximum number of redirects
+     * @return this
+     */
+    public HttpClientBuilder setMaxRedirects(int maxRedirects) {
+        Checks.nonNegative("maxRedirects", maxRedirects);
+        this.maxRedirects = maxRedirects;
+        return this;
+    }
+
+    private static final class OneResolverGroup<T extends SocketAddress> extends AddressResolverGroup<T> {
+
+        private final AddressResolver<T> singleResolver;
+
+        public OneResolverGroup(AddressResolver<T> singleResolver) {
+            this.singleResolver = singleResolver;
+        }
+
+        @Override
+        protected AddressResolver<T> newResolver(EventExecutor ee) throws Exception {
+            return singleResolver;
+        }
+    }
+
+    /**
+     * Set the thread pool used to perform network I/O.
+     *
+     * @param group The thread pool to use
+     * @return this
+     */
+    public HttpClientBuilder setEventLoopGroup(NioEventLoopGroup group) {
+        Checks.notNull("group", group);
+        if (threadCount != -1) {
+            throw new IllegalStateException("Thread count already set. If you want to provide "
+                    + "your own NioEventLoopGroup, don't also set that - these options are "
+                    + "mutually exclusive.");
+        }
+        this.group = group;
+        return this;
+    }
+
+    /**
      * Build an HTTP client
+     *
      * @return an http client
      */
     public HttpClient build() {
-        return new HttpClient(compression, maxChunkSize, threadCount,
+        return new HttpClient(compression, maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
-                userAgent, interceptors, settings, send100continue,
-                cookies, timeout, sslContext, poolSize, allocator);
-    }
-    /**
-     * The default - don't use a connection pool.
-     * 
-     * @return this
-     */
-    public HttpClientBuilder dontUseConnectionPool() {
-        poolSize = 0;
-        return this;
-    }
-
-    /**
-     * Use a connection pool that allows unlimited connections to a single
-     * host, and will reuse them.
-     * 
-     * @return this
-     */
-    public HttpClientBuilder useUnlimitedConnectionPool() {
-        poolSize = -1;
-        return this;
-    }
-
-    /**
-     * Set the per-host connection pool size.  This limits the number
-     * of connections the HttpClient will hold open <b>per-host</b> (there
-     * is no global limit).
-     * 
-     * @param poolSize The size of the pool - must be > 0.
-     * @return this
-     */
-    public HttpClientBuilder setConnectionPoolSize(int poolSize) {
-        Checks.nonZero("poolSize", poolSize);
-        Checks.nonNegative("poolSize", poolSize);
-        this.poolSize = poolSize;
-        return this;
-    }
-    
-    /**
-     * Set the ByteBufAllocator that allocates memory for responses.
-     * The default is currently PooledByteBufAllocator.DEFAULT.
-     * 
-     * @param allocator The allocator
-     * @return This
-     */
-    public HttpClientBuilder setAllocator(ByteBufAllocator allocator) {
-        Checks.notNull("allocator", allocator);
-        this.allocator = allocator;
-        return this;
+                userAgent, interceptors, Collections.unmodifiableList(new ArrayList<>(settings)), send100continue,
+                cookies, timeout, sslContext, resolver, group, maxRedirects);
     }
 
     /**
      * Set the user agent
+     *
      * @param userAgent
      * @return this
      */
@@ -263,6 +319,7 @@ public final class HttpClientBuilder {
     /**
      * Add an interceptor which should get a chance to process every request
      * before it is invoked;  useful for things that sign requests and such.
+     *
      * @param interceptor An interceptor
      * @return this
      */
@@ -275,11 +332,12 @@ public final class HttpClientBuilder {
 
     /**
      * Set a low-level setting for the Netty pipeline.  See the
-     * <a href="http://netty.io/4.0/api/io/netty/channel/ChannelOption.html">Netty documentation</a>
+     * <a href="http://netty.io/4.0/api/io/netty/channel/ChannelOption.html">Netty
+     * documentation</a>
      * for what these are.
      *
      * @param <T> The type
-     * @param option The option
+     * @param option The applyOption
      * @param value The value type
      * @return this
      */
@@ -290,7 +348,7 @@ public final class HttpClientBuilder {
                 it.remove();
             }
         }
-        settings.add(new ChannelOptionSetting<T>(option, value));
+        settings.add(new ChannelOptionSetting<>(option, value));
         return this;
     }
 
@@ -307,14 +365,14 @@ public final class HttpClientBuilder {
     }
 
     /**
-     * Encapsulates a setting that can be set on the Netty Bootstrap;  not
-     * really an API class, but exposed so that the HttpClient constructor
-     * can be invoked directly if someone wants to (using
+     * Encapsulates a setting that can be set on the Netty Bootstrap; not really
+     * an API class, but exposed so that the HttpClient constructor can be
+     * invoked directly if someone wants to (using
      * <a href="HttpClientBuilder.html">HttpClientBuilder</a> is much easier).
      *
      * @param <T> A type
      */
-    public static class ChannelOptionSetting<T> {
+    protected static final class ChannelOptionSetting<T> {
 
         private final ChannelOption<T> option;
         private final T value;
@@ -330,6 +388,10 @@ public final class HttpClientBuilder {
 
         public T value() {
             return value;
+        }
+
+        void apply(Bootstrap bootstrap) {
+            bootstrap.option(option, value);
         }
     }
 }

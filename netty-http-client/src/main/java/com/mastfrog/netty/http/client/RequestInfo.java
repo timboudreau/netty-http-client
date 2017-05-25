@@ -48,8 +48,10 @@ final class RequestInfo {
     volatile boolean listenerAdded;
     TimerTask timer;
     final boolean dontAggregate;
+    final ChunkedContent chunkedBody;
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, DateTime startTime, TimerTask timer, boolean noAggregate) {
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, 
+            Duration timeout, DateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
@@ -59,10 +61,11 @@ final class RequestInfo {
         this.startTime = startTime;
         this.timer = timer;
         this.dontAggregate = noAggregate;
+        this.chunkedBody = chunkedBody;
     }
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate) {
-        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer, noAggregate);
+    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
+        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer, noAggregate, chunkedBody);
     }
     
     Duration age() {

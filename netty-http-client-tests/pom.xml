@@ -4,18 +4,18 @@
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>1.6.5</version>
+        <version>1.7.0-dev</version>
         <relativePath/>
     </parent>
-    <groupId>com.timboudreau</groupId>
+    <groupId>com.mastfrog</groupId>
     <artifactId>netty-http-client-tests</artifactId>
     <dependencies>
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>acteur</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>netty-http-test-harness</artifactId>
         </dependency>
         <dependency>
@@ -23,9 +23,9 @@
             <artifactId>netty-connection-pools</artifactId>
             <type>jar</type>
             <version>${mastfrog.version}</version>
-        </dependency>        
+        </dependency>  
         <dependency>
-            <groupId>com.mastfrog</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>giulius-tests</artifactId>
             <scope>test</scope>
         </dependency>

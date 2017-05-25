@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2014 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 package com.mastfrog.netty.http.client;
 
-import io.netty.handler.codec.http.HttpRequest;
+import com.mastfrog.util.Exceptions;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFactory;
+import io.netty.channel.EventLoop;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import java.io.IOException;
+import java.nio.channels.SocketChannel;
 
 /**
- * Object which can be attached to an HttpClient which intercept all requests
- * and can modify them before they are sent
  *
  * @author Tim Boudreau
  */
-public interface RequestInterceptor {
-    HttpRequest intercept(HttpRequest req);
+final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
+
+    public NioSocketChannel newChannel() {
+        try {
+            return new NioSocketChannel(SocketChannel.open());
+        } catch (IOException ioe) {
+            return Exceptions.chuck(ioe);
+        }
+    }
+
+    public Channel newChannel(EventLoop eventLoop) {
+        return newChannel();
+    }
 }

@@ -29,8 +29,8 @@ import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.thread.Receiver;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultCookie;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
 import java.io.IOException;
@@ -154,11 +154,11 @@ public final class CookieStore implements Iterable<Cookie> {
 
     void decorate(HttpRequest req) {
         URL url;
-        if (!req.getUri().contains("://")) {
+        if (!req.uri().contains("://")) {
             String host = req.headers().get(Headers.HOST.name());
-            url = URL.builder().setPath(req.getUri()).setHost(host).create();
+            url = URL.builder().setPath(req.uri()).setHost(host).create();
         } else {
-            url = URL.parse(req.getUri());
+            url = URL.parse(req.uri());
         }
         Lock readLock = lock.readLock();
         readLock.lock();
@@ -166,12 +166,12 @@ public final class CookieStore implements Iterable<Cookie> {
             List<Cookie> toSend = new ArrayList<>();
             for (Cookie cookie : cookies) {
                 if (checkDomain) {
-                    if (cookie.getDomain() != null && !cookie.getDomain().equals(url.getHost().toString())) {
+                    if (cookie.domain() != null && !cookie.domain().equals(url.getHost().toString())) {
                         continue;
                     }
                 }
                 if (checkPath) {
-                    String pth = cookie.getPath();
+                    String pth = cookie.path();
                     if (pth != null) {
                         String compare = url.getPath().toStringWithLeadingSlash();
                         if (!"/".equals(pth) && !"".equals(pth) && !compare.equals(pth) && !compare.startsWith(pth)) {
@@ -183,8 +183,8 @@ public final class CookieStore implements Iterable<Cookie> {
             }
             if (!toSend.isEmpty()) {
                 for (Cookie ck : toSend) {
-                    String headerValue = Headers.COOKIE.toString(new Cookie[]{ck});
-                    req.headers().add(Headers.COOKIE.name(), headerValue);
+                    String headerValue = Headers.COOKIE_B.toString(new Cookie[]{ck});
+                    req.headers().add(Headers.COOKIE_B.name(), headerValue);
                 }
             }
         } finally {
@@ -197,8 +197,8 @@ public final class CookieStore implements Iterable<Cookie> {
         readLock.lock();
         try {
             for (Cookie ck : cookies) {
-                if (name.equals(ck.getName())) {
-                    return ck.getValue();
+                if (name.equals(ck.name())) {
+                    return ck.value();
                 }
             }
         } finally {
@@ -208,19 +208,19 @@ public final class CookieStore implements Iterable<Cookie> {
     }
 
     public void add(Cookie cookie) {
-        String name = cookie.getName();
+        String name = cookie.name();
         Lock writeLock = lock.writeLock();
         try {
             writeLock.lock();
             for (Iterator<DateCookie> it = cookies.iterator(); it.hasNext();) {
                 DateCookie ck = it.next();
-                if (name.equals(ck.getName())) {
+                if (name.equals(ck.name())) {
                     it.remove();
                 } else if (ck.isExpired()) {
                     it.remove();
                 }
             }
-            if (!cookie.isDiscard() && cookie.getMaxAge() > 0) {
+            if (cookie.maxAge() > 0) {
                 cookies.add(new DateCookie(cookie));
             }
         } finally {
@@ -234,7 +234,7 @@ public final class CookieStore implements Iterable<Cookie> {
             writeLock.lock();
             for (Iterator<DateCookie> it = cookies.iterator(); it.hasNext();) {
                 DateCookie ck = it.next();
-                if (name.equals(ck.getName())) {
+                if (name.equals(ck.name())) {
                     it.remove();
                 }
             }
@@ -244,14 +244,14 @@ public final class CookieStore implements Iterable<Cookie> {
     }
 
     void extract(HttpHeaders headers) {
-        List<String> hdrs = headers.getAll(Headers.SET_COOKIE.name());
+        List<String> hdrs = headers.getAll(Headers.SET_COOKIE_B.name());
         if (!hdrs.isEmpty()) {
             Lock writeLock = lock.writeLock();
             try {
                 writeLock.lock();
                 for (String header : hdrs) {
                     try {
-                        Cookie cookie = Headers.SET_COOKIE.toValue(header);
+                        Cookie cookie = Headers.SET_COOKIE_B.toValue(header);
                         add(cookie);
                     } catch (Exception e) {
                         if (errorHandler != null) {
@@ -280,7 +280,7 @@ public final class CookieStore implements Iterable<Cookie> {
             readLock.unlock();
         }
         Collections.sort(cks);
-        return Headers.COOKIE.toString(cks.toArray(new Cookie[cks.size()]));
+        return Headers.COOKIE_B.toString(cks.toArray(new Cookie[cks.size()]));
     }
 
     @Override
@@ -310,23 +310,14 @@ public final class CookieStore implements Iterable<Cookie> {
         List<Map<String, Object>> list = new LinkedList<>();
         for (DateCookie ck : cks) {
             Map<String, Object> m = new HashMap<>();
-            m.put("domain", ck.getDomain());
-            m.put("maxAge", ck.getMaxAge());
+            m.put("domain", ck.domain());
+            m.put("maxAge", ck.maxAge());
             m.put("timestamp", ck.getTimestamp().getMillis());
-            m.put("path", ck.getPath());
-            m.put("name", ck.getName());
-            m.put("value", ck.getValue());
+            m.put("path", ck.path());
+            m.put("name", ck.name());
+            m.put("value", ck.value());
             m.put("httpOnly", ck.isHttpOnly());
             m.put("secure", ck.isSecure());
-            if (ck.getComment() != null) {
-                m.put("comment", ck.getComment());
-            }
-            if (ck.getCommentUrl() != null) {
-                m.put("commentUrl", ck.getCommentUrl());
-            }
-            if (ck.getPorts() != null && !ck.getPorts().isEmpty()) {
-                m.put("ports", ck.getPorts().toArray(new Integer[0]));
-            }
             list.add(m);
         }
         om.writeValue(out, list);
@@ -368,15 +359,6 @@ public final class CookieStore implements Iterable<Cookie> {
             }
             if (secure != null) {
                 cookie.setSecure(secure);
-            }
-            if (comment != null) {
-                cookie.setComment(comment);
-            }
-            if (commentUrl != null) {
-                cookie.setCommentUrl(commentUrl);
-            }
-            if (ports != null) {
-                cookie.setPorts(ports);
             }
             cks.add(cookie);
         }
@@ -422,12 +404,12 @@ public final class CookieStore implements Iterable<Cookie> {
         }
 
         public boolean isExpired() {
-            if (getMaxAge() == Long.MAX_VALUE) {
+            if (maxAge() == Long.MAX_VALUE) {
                 return false;
             }
             Duration dur;
             try {
-                dur = Duration.standardSeconds(getMaxAge());
+                dur = Duration.standardSeconds(maxAge());
             } catch (ArithmeticException ex) {
                 // A number high enough that * 1000 it is > Long.MAX_VALUE will overflow
                 dur = new Duration(Long.MAX_VALUE);
@@ -441,155 +423,6 @@ public final class CookieStore implements Iterable<Cookie> {
         }
 
         @Override
-        public String getName() {
-            return delegate.getName();
-        }
-
-        @Override
-        public String getValue() {
-            return delegate.getValue();
-        }
-
-        @Override
-        public void setValue(String value) {
-            delegate.setValue(value);
-        }
-
-        @Override
-        public String getDomain() {
-            return delegate.getDomain();
-        }
-
-        @Override
-        public void setDomain(String domain) {
-            delegate.setDomain(domain);
-        }
-
-        @Override
-        public String getPath() {
-            return delegate.getPath();
-        }
-
-        @Override
-        public void setPath(String path) {
-            delegate.setPath(path);
-        }
-
-        @Override
-        public String getComment() {
-            return delegate.getComment();
-        }
-
-        @Override
-        public void setComment(String comment) {
-            delegate.setComment(comment);
-        }
-
-        @Override
-        public long getMaxAge() {
-            return delegate.getMaxAge();
-        }
-
-        @Override
-        public void setMaxAge(long maxAge) {
-            delegate.setMaxAge(maxAge);
-        }
-
-        @Override
-        public int getVersion() {
-            return delegate.getVersion();
-        }
-
-        @Override
-        public void setVersion(int version) {
-            delegate.setVersion(version);
-        }
-
-        @Override
-        public boolean isSecure() {
-            return delegate.isSecure();
-        }
-
-        @Override
-        public void setSecure(boolean secure) {
-            delegate.setSecure(secure);
-        }
-
-        @Override
-        public boolean isHttpOnly() {
-            return delegate.isHttpOnly();
-        }
-
-        @Override
-        public void setHttpOnly(boolean httpOnly) {
-            delegate.setHttpOnly(httpOnly);
-        }
-
-        @Override
-        public String getCommentUrl() {
-            return delegate.getCommentUrl();
-        }
-
-        @Override
-        public void setCommentUrl(String commentUrl) {
-            delegate.setCommentUrl(commentUrl);
-        }
-
-        @Override
-        public boolean isDiscard() {
-            return delegate.isDiscard();
-        }
-
-        @Override
-        public void setDiscard(boolean discard) {
-            delegate.setDiscard(discard);
-        }
-
-        @Override
-        public Set<Integer> getPorts() {
-            return delegate.getPorts();
-        }
-
-        @Override
-        public void setPorts(int... ports) {
-            delegate.setPorts(ports);
-        }
-
-        @Override
-        public void setPorts(Iterable<Integer> ports) {
-            delegate.setPorts(ports);
-        }
-
-        public int compareTo(Cookie t) {
-            return delegate.compareTo(t);
-        }
-
-        @Override
-        public Set<Integer> ports() {
-            return delegate.ports();
-        }
-
-        @Override
-        public String comment() {
-            return delegate.comment();
-        }
-
-        @Override
-        public long maxAge() {
-            return delegate.maxAge();
-        }
-
-        @Override
-        public int version() {
-            return delegate.version();
-        }
-
-        @Override
-        public String commentUrl() {
-            return delegate.commentUrl();
-        }
-
-        @Override
         public String name() {
             return delegate.name();
         }
@@ -597,6 +430,11 @@ public final class CookieStore implements Iterable<Cookie> {
         @Override
         public String value() {
             return delegate.value();
+        }
+
+        @Override
+        public void setValue(String string) {
+            delegate.setValue(string);
         }
 
         @Override
@@ -615,12 +453,52 @@ public final class CookieStore implements Iterable<Cookie> {
         }
 
         @Override
+        public void setDomain(String string) {
+            delegate.setDomain(string);
+        }
+
+        @Override
         public String path() {
             return delegate.path();
         }
 
         @Override
-        public int compareTo(io.netty.handler.codec.http.cookie.Cookie o) {
+        public void setPath(String string) {
+            delegate.setPath(string);
+        }
+
+        @Override
+        public long maxAge() {
+            return delegate.maxAge();
+        }
+
+        @Override
+        public void setMaxAge(long l) {
+            delegate.setMaxAge(l);
+        }
+
+        @Override
+        public boolean isSecure() {
+            return delegate.isSecure();
+        }
+
+        @Override
+        public void setSecure(boolean bln) {
+            delegate.setSecure(bln);
+        }
+
+        @Override
+        public boolean isHttpOnly() {
+            return delegate.isHttpOnly();
+        }
+
+        @Override
+        public void setHttpOnly(boolean bln) {
+            delegate.setHttpOnly(bln);
+        }
+
+        @Override
+        public int compareTo(Cookie o) {
             return delegate.compareTo(o);
         }
     }

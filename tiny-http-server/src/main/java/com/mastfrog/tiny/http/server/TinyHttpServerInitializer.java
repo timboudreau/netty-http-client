@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,32 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.netty.http.client;
+package com.mastfrog.tiny.http.server;
 
-import com.mastfrog.util.thread.Receiver;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.ssl.SslContext;
 
-/**
- *
- * @author Tim Boudreau
- */
-final class HandlerEntry<T> {
+final class TinyHttpServerInitializer extends ChannelInitializer<SocketChannel> {
 
-    final Class<? extends State<T>> state;
-    private final Set<Receiver<T>> receivers = new LinkedHashSet<>();
+    private final SslContext sslCtx;
+    private final TinyHttpServerHandler handler;
 
-    HandlerEntry(Class<? extends State<T>> state) {
-        this.state = state;
+    public TinyHttpServerInitializer(SslContext sslCtx, TinyHttpServerHandler handler) {
+        this.sslCtx = sslCtx;
+        this.handler = handler;
     }
 
-    void add(Receiver<T> r) {
-        receivers.add(r);
-    }
-
-    void onEvent(State<T> state) {
-        for (Receiver<T> r : receivers) {
-            r.receive(state.get());
+    @Override
+    public void initChannel(SocketChannel ch) {
+        ChannelPipeline p = ch.pipeline();
+        if (sslCtx != null) {
+            p.addLast(sslCtx.newHandler(ch.alloc()));
         }
+        p.addLast(new HttpServerCodec());
+        p.addLast(new HttpObjectAggregator(65535));
+        p.addLast(new HttpContentCompressor(9));
+        p.addLast(handler);
     }
 }

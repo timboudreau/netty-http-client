@@ -1,7 +1,7 @@
-/* 
+/*
  * The MIT License
  *
- * Copyright 2013 Tim Boudreau.
+ * Copyright 2017 Tim Boudreau.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.mastfrog.netty.http.client;
+
+package com.mastfrog.tiny.http.server;
 
 import io.netty.handler.codec.http.HttpRequest;
 
 /**
- * Object which can be attached to an HttpClient which intercept all requests
- * and can modify them before they are sent
+ * Responds to HTTP requests.
  *
  * @author Tim Boudreau
  */
-public interface RequestInterceptor {
-    HttpRequest intercept(HttpRequest req);
+@FunctionalInterface
+public interface Responder {
+    /**
+     * Receives an HTTP request and produces a response.
+     * 
+     * @param req The request
+     * @param response The response headers - set headers and response code
+     * @return A CharSequence/String/ByteBuf/HttpContent/ChunkedResponse
+     */
+    Object receive(HttpRequest req, ResponseHead response) throws Exception;
 }
