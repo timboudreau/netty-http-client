@@ -23,8 +23,13 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mastfrog.marshallers.ContentMarshallers;
 import com.mastfrog.util.Checks;
+import com.mastfrog.marshallers.Marshaller;
+import com.mastfrog.marshallers.netty.NettyContentMarshallers;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.SslContext;
@@ -34,9 +39,11 @@ import io.netty.util.concurrent.EventExecutor;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import org.joda.time.Duration;
 
 /**
@@ -62,6 +69,35 @@ public final class HttpClientBuilder {
     private AddressResolverGroup<? extends SocketAddress> resolver;
     private NioEventLoopGroup group;
     private int maxRedirects = -1;
+    private ObjectMapper mapper = new ObjectMapper();
+    private final Set<MarshallerEntry<?>> marshallers = new HashSet<>();
+
+    /**
+     * Set the ObjectMapper used to read and write JSON.
+     *
+     * @param mapper The mapper
+     * @return this
+     */
+    public HttpClientBuilder setObjectMapper(ObjectMapper mapper) {
+        Checks.notNull("mapper", mapper);
+        this.mapper = mapper;
+        return this;
+    }
+
+    /**
+     * Set the marshaller used to convert inbound and outbound message bodies to
+     * / from objects. If you wanted to, say, read a response that is CSV as
+     * some kind of object, you would write a marshaller that can read and write
+     * that to a ByteBuf and add it here.
+     *
+     * @param marshaller The marshaller
+     * @return this
+     */
+    public <T> HttpClientBuilder addMarshaller(Class<T> forType, Marshaller<T, ByteBuf> marshaller) {
+        Checks.notNull("marshaller", marshaller);
+        marshallers.add(new MarshallerEntry<T>(forType, marshaller));
+        return this;
+    }
 
     /**
      * Set the SSL context to use when accessing HTTPS addresses. In particular,
@@ -300,10 +336,14 @@ public final class HttpClientBuilder {
      * @return an http client
      */
     public HttpClient build() {
+        NettyContentMarshallers marshallers = NettyContentMarshallers.getDefault(mapper);
+        for (MarshallerEntry<?> m : this.marshallers) {
+            m.apply(marshallers);
+        }
         return new HttpClient(compression, maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
                 maxInitialLineLength, maxHeadersSize, followRedirects,
                 userAgent, interceptors, Collections.unmodifiableList(new ArrayList<>(settings)), send100continue,
-                cookies, timeout, sslContext, resolver, group, maxRedirects);
+                cookies, timeout, sslContext, resolver, group, maxRedirects,  marshallers, mapper);
     }
 
     /**
@@ -393,6 +433,30 @@ public final class HttpClientBuilder {
 
         void apply(Bootstrap bootstrap) {
             bootstrap.option(option, value);
+        }
+    }
+    
+    private static final class MarshallerEntry<T> {
+        private final Class<T> type;
+        private final Marshaller<T,ByteBuf> marshaller;
+
+        public MarshallerEntry(Class<T> type, Marshaller<T, ByteBuf> marshaller) {
+            this.type = type;
+            this.marshaller = marshaller;
+        }
+        
+        <R extends ContentMarshallers<ByteBuf, R>> void apply(ContentMarshallers<ByteBuf, R> marshallers) {
+            marshallers.add(type, marshaller);
+        }
+        
+        public boolean equals(Object o) {
+            return o == null ? false : o == this ? true :
+                    o instanceof MarshallerEntry<?> && ((MarshallerEntry<?>) o).type == type ? 
+                    true : false;
+        }
+        
+        public int hashCode() {
+            return type.hashCode();
         }
     }
 }

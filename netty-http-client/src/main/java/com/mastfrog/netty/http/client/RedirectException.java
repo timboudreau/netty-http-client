@@ -25,7 +25,10 @@
 package com.mastfrog.netty.http.client;
 
 /**
+ * Exception passed to onError when a redirect loop is encountered, or
+ * the redirect URL cannot be parsed.
  *
+ * @since 1.7.0
  * @author Tim Boudreau
  */
 public class RedirectException extends Exception {

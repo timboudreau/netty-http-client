@@ -28,6 +28,7 @@ import com.mastfrog.giulius.tests.TestWith;
 import com.mastfrog.netty.http.test.harness.TestHarness;
 import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
+import com.timboudreau.netty.http.client.tests.TestModuleTest.M;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.joda.time.Duration;
 import org.junit.Test;
@@ -37,7 +38,7 @@ import org.junit.runner.RunWith;
  *
  * @author Tim Boudreau
  */
-@TestWith({TestHarnessModule.class, TestModule.class})
+@TestWith({TestHarnessModule.class, TestModule.class, M.class})
 @RunWith(GuiceRunner.class)
 public class RedirectTest {
 

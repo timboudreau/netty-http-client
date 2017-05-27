@@ -23,11 +23,13 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
+import com.mastfrog.marshallers.netty.NettyContentMarshallers;
 import com.mastfrog.netty.http.client.HttpClientBuilder.ChannelOptionSetting;
 import com.mastfrog.url.HostAndPort;
 import com.mastfrog.url.URL;
@@ -48,7 +50,6 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
@@ -160,12 +161,14 @@ public final class HttpClient {
     private final MessageHandlerImpl handler;
     private final AddressResolverGroup<?> resolver;
     private final NioChannelFactory channelFactory = new NioChannelFactory();
+    private final NettyContentMarshallers marshallers;
+    private final ObjectMapper mapper;
 
     public HttpClient() {
         this(false, 128 * 1024, 12, 8192, 16383, true, null,
                 Collections.<RequestInterceptor>emptyList(),
                 Collections.<ChannelOptionSetting<?>>emptyList(),
-                true, null, null, null, null, null, -1);
+                true, null, null, null, null, null, -1, null, null);
     }
 
     /**
@@ -208,7 +211,10 @@ public final class HttpClient {
             String userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
             CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver,
-            NioEventLoopGroup threadPool, int maxRedirects) {
+            NioEventLoopGroup threadPool, int maxRedirects, NettyContentMarshallers marshallers, 
+            ObjectMapper mapper) {
+        this.mapper = mapper == null ? new ObjectMapper() : mapper;
+        this.marshallers = marshallers == null ? NettyContentMarshallers.getDefault(this.mapper) : marshallers;
         group = threadPool == null ? new NioEventLoopGroup(threads, new TF()) : threadPool;
         this.compress = compress;
         this.resolver = resolver;
@@ -684,7 +690,15 @@ public final class HttpClient {
         }
 
         @Override
+        NettyContentMarshallers marshallers() {
+            return HttpClient.this.marshallers;
+        }
+
+        @Override
         public ResponseFuture execute(ResponseHandler<?> r) {
+            if (r != null && r.marshallers == null) {
+                r.marshallers = HttpClient.this.marshallers;
+            }
             URL u = getURL();
             HttpRequest req = build();
             if (userAgent != null) {

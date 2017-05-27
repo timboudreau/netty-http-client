@@ -81,7 +81,8 @@ import static org.junit.Assert.fail;
 public class TestHarness implements ErrorInterceptor {
 
     private final Server server;
-    private final HttpClient client;
+    @Inject(optional=true)
+    private HttpClient client;
     private final int port;
     private final ObjectMapper mapper;
 
@@ -90,6 +91,10 @@ public class TestHarness implements ErrorInterceptor {
     }
 
     @Inject
+    public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, ObjectMapper mapper) throws IOException {
+        this(server, settings, reg, null, mapper);
+    }
+
     public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
@@ -101,6 +106,9 @@ public class TestHarness implements ErrorInterceptor {
     }
 
     public HttpClient client() {
+        if (client == null) {
+            client = HttpClient.builder().build();
+        }
         return client;
     }
 
@@ -178,7 +186,9 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public void run() {
-            client.shutdown();
+            if (client != null) {
+                client.shutdown();
+            }
             try {
                 if (serverStart != null) {
                     serverStart.shutdown(true);
@@ -231,7 +241,7 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
         }
-        TestRequestBuilder result = new TestRequestBuilder(client.request(m).setHost("localhost").setPort(server.getPort()), mapper);
+        TestRequestBuilder result = new TestRequestBuilder(client().request(m).setHost("localhost").setPort(server.getPort()), mapper);
         for (String el : pathElements) {
             String[] parts = el.split("/");
             for (String part : parts) {
@@ -540,11 +550,11 @@ public class TestHarness implements ErrorInterceptor {
             switch (state.stateType()) {
                 case Connected:
                     if (timeout.getMillis() != Long.MAX_VALUE) {
-                    Thread t = new Thread(this);
-                    t.setDaemon(true);
-                    t.setName("Timeout thread for " + url.getPathAndQuery());
-                    t.setPriority(Thread.NORM_PRIORITY - 1);
-                    t.start();
+                        Thread t = new Thread(this);
+                        t.setDaemon(true);
+                        t.setName("Timeout thread for " + url.getPathAndQuery());
+                        t.setPriority(Thread.NORM_PRIORITY - 1);
+                        t.start();
                     }
                     break;
                 case SendRequest:
@@ -672,19 +682,19 @@ public class TestHarness implements ErrorInterceptor {
             // the real response status, after the payload is sent
             if (!HttpResponseStatus.CONTINUE.equals(status)) {
                 while (HttpResponseStatus.CONTINUE.equals(getStatus())) {
-                if (states.contains(StateType.Timeout)) {
-                    throw new AssertionError("Timed out");
-                }
+                    if (states.contains(StateType.Timeout)) {
+                        throw new AssertionError("Timed out");
+                    }
                     if (states.contains(StateType.Cancelled)) {
                         throw new AssertionError("Cancelled");
-            }
+                    }
                     HttpResponseStatus currStatus = getStatus();
                     if (currStatus == null || HttpResponseStatus.CONTINUE.equals(currStatus)) {
                         latches.get(HeadersReceived).reset();
                         await(HeadersReceived);
                     } else if (!HttpResponseStatus.CONTINUE.equals(currStatus)) {
                         break;
-            }
+                    }
                 }
             }
             if (getStatus() == null) {
@@ -694,7 +704,7 @@ public class TestHarness implements ErrorInterceptor {
                 if (states.contains(StateType.Cancelled)) {
                     throw new AssertionError("Cancelled");
                 }
-                System.out.println("AWAIT HEADERS RECEIVED AGAIN - states " + states);
+//                System.out.println("AWAIT HEADERS RECEIVED AGAIN - states " + states);
                 await(HeadersReceived);
             }
             HttpResponseStatus actualStatus = getStatus();
@@ -816,9 +826,8 @@ public class TestHarness implements ErrorInterceptor {
                 buf.readBytes(b);
                 return type.cast(new String(b, "UTF-8"));
             } else {
-                ObjectMapper m = mapper;
                 try {
-                    return m.readValue((InputStream)new ByteBufInputStream(buf), type);
+                    return mapper.readValue((InputStream) new ByteBufInputStream(buf), type);
                 } catch (JsonParseException | JsonMappingException ex) {
                     buf.resetReaderIndex();
                     String data = bufToString(buf);
@@ -980,9 +989,9 @@ public class TestHarness implements ErrorInterceptor {
                         return cookie;
                     }
                 } else if (log) {
-                        System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
-                    }
+                    System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
                 }
+            }
             return null;
         }
 

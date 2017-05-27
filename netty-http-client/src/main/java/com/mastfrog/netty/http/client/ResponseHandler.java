@@ -25,12 +25,15 @@ package com.mastfrog.netty.http.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.net.MediaType;
+import com.mastfrog.marshallers.netty.NettyContentMarshallers;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Streams;
 import io.netty.buffer.ByteBufInputStream;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -53,15 +56,19 @@ public abstract class ResponseHandler<T> {
 
     private final Class<T> type;
     private final CountDownLatch latch = new CountDownLatch(1);
-    private ObjectMapper mapper;
+    NettyContentMarshallers marshallers;
 
-    public ResponseHandler(Class<T> type, ObjectMapper mapper) {
-        this.mapper = mapper;
+    public ResponseHandler(Class<T> type, NettyContentMarshallers marshallers) {
+        this.marshallers = marshallers;
         this.type = type;
     }
 
+    public ResponseHandler(Class<T> type, ObjectMapper mapper) {
+        this(type, NettyContentMarshallers.getDefault(mapper));
+    }
+
     public ResponseHandler(Class<T> type) {
-        this(type, new ObjectMapper());
+        this(type, NettyContentMarshallers.getDefault(new ObjectMapper()));
     }
 
     public void await() throws InterruptedException {
@@ -75,39 +82,28 @@ public abstract class ResponseHandler<T> {
     protected void internalReceive(HttpResponseStatus status, HttpHeaders headers, ByteBuf content) {
         try {
             if (status.code() > 399) {
-                byte[] b = new byte[content.readableBytes()];
-                content.readBytes(b);
-                onErrorResponse(status, headers, new String(b, CharsetUtil.UTF_8));
+                onErrorResponse(status, headers, content.readCharSequence(content.readableBytes(), CharsetUtil.UTF_8).toString());
                 return;
             }
-            if (type == ByteBuf.class) {
-                _doReceive(status, headers, type.cast(content));
-            } else if (type == String.class || type == CharSequence.class) {
-                byte[] b = new byte[content.readableBytes()];
-                content.readBytes(b);
-                _doReceive(status, headers, type.cast(new String(b, CharsetUtil.UTF_8)));
-            } else if (type == byte[].class) {
-                byte[] b = new byte[content.readableBytes()];
-                content.readBytes(b);
-                _doReceive(status, headers, type.cast(b));
-            } else {
-                byte[] b = new byte[content.readableBytes()];
-                content.readBytes(b);
+            MediaType mediaType = null;
+            if (headers.contains(HttpHeaderNames.CONTENT_TYPE)) {
                 try {
-                    Object o = mapper.readValue(b, type);
-                    _doReceive(status, headers, type.cast(o));
-                } catch (JsonParseException ex) {
-                    content.resetReaderIndex();
-                    try {
-                        String s = Streams.readString(new ByteBufInputStream(content), "UTF-8");
-                        onErrorResponse(HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE, headers, s);
-                    } catch (IOException ex1) {
-                        Exceptions.chuck(ex1);
-                    }
+                    mediaType = MediaType.parse(headers.get(HttpHeaderNames.CONTENT_TYPE));
                 } catch (Exception ex) {
-                    Exceptions.chuck(ex);
+                    //do nothing
                 }
             }
+            T o = mediaType == null ? marshallers.read(type, content) : marshallers.read(type, content, mediaType);
+            _doReceive(status, headers, type.cast(o));
+        } catch (Exception ex) {
+            content.resetReaderIndex();
+            try {
+                String s = Streams.readString(new ByteBufInputStream(content), "UTF-8");
+                onErrorResponse(HttpResponseStatus.REQUESTED_RANGE_NOT_SATISFIABLE, headers, s);
+            } catch (IOException ex1) {
+                ex.addSuppressed(ex1);
+            }
+            Exceptions.chuck(ex);
         } finally {
             latch.countDown();
         }
