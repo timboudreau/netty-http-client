@@ -47,7 +47,7 @@ public class ConnectionRefusedTest {
         HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
         final Set<StateType> states = Sets.newConcurrentHashSet();
-        client.get().setTimeout(new Duration(2)).setURL("http://10.0.0.0/abcd")
+        client.get().setTimeout(new Duration(2)).setURL("http://10.0.0.254:3720/abcd")
                 .onEvent(new Receiver<State<?>>() {
 
                     @Override

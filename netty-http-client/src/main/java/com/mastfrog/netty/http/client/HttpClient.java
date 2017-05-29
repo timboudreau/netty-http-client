@@ -61,6 +61,7 @@ import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import java.net.ConnectException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -363,10 +364,11 @@ public final class HttpClient {
 
     void copyHeaders(HttpRequest from, HttpRequest to, HeaderValueType<?>... exclude) {
         copy:
-        for (Map.Entry<String, String> e : from.headers().entries()) {
-            String header = e.getKey();
+        for (Iterator<Map.Entry<CharSequence,CharSequence>> it=from.headers().iteratorCharSequence(); it.hasNext();) {
+            Map.Entry<CharSequence,CharSequence> e = it.next();
+            CharSequence header = e.getKey();
             for (HeaderValueType<?> ex : exclude) {
-                if (ex.name().equalsIgnoreCase(header)) {
+                if (ex.is(header)) {
                     continue copy;
                 }
             }

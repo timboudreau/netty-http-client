@@ -146,7 +146,7 @@ public enum StateType {
                             }
                         }
                     }
-                    System.err.println("Receiver for "
+                    System.err.println("Receiver " + orig + " for "
                             + type.getName() + " takes the "
                             + "wrong class " + typeName + " in its receive() "
                             + "method. Expected " + type + ". Passing null "

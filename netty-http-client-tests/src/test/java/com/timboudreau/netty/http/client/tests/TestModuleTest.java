@@ -24,11 +24,15 @@
 package com.timboudreau.netty.http.client.tests;
 
 import com.google.inject.AbstractModule;
+import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.giulius.tests.GuiceRunner;
 import com.mastfrog.giulius.tests.TestWith;
+import com.mastfrog.netty.http.client.CookieStore;
 import com.mastfrog.netty.http.client.HttpClient;
 import com.mastfrog.netty.http.client.ResponseHandler;
+import com.mastfrog.netty.http.client.StateType;
 import com.mastfrog.netty.http.test.harness.TestHarness;
+import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.thread.Receiver;
@@ -36,12 +40,15 @@ import com.timboudreau.netty.http.client.tests.TestModuleTest.M;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.cookie.Cookie;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +74,6 @@ public class TestModuleTest {
         protected void configure() {
             bind(HttpClient.class).toInstance(HttpClient.builder().useCompression().build());
         }
-        
     }
 
     @Test
@@ -100,14 +106,13 @@ public class TestModuleTest {
 //        assertEquals("gzip", hdrs.get().get(HttpHeaderNames.CONTENT_ENCODING));
         
     }
-    /*
 
     @Test
     public void test(TestHarness harn) throws Throwable {
         assertTrue(true);
         CookieStore store = new CookieStore();
         CallResult res = harn.get("/ok").setCookieStore(store).go().assertStatus(OK);
-        res.assertHasHeader(Headers.SET_COOKIE.name());
+        res.assertHasHeader(HttpHeaderNames.SET_COOKIE);
         assertTrue(store.iterator().hasNext());
         res.assertCookieValue("xid", "1").throwIfError();
 
@@ -153,7 +158,6 @@ public class TestModuleTest {
         Thread.sleep(2000);
         assertFalse(full.called);
     }
-*/
 
     static class R extends Receiver<HttpContent> {
 

@@ -59,11 +59,17 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.Strings;
 import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.util.CharsetUtil;
+import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.fail;
@@ -81,7 +87,7 @@ import static org.junit.Assert.fail;
 public class TestHarness implements ErrorInterceptor {
 
     private final Server server;
-    @Inject(optional=true)
+    @Inject(optional = true)
     private HttpClient client;
     private final int port;
     private final ObjectMapper mapper;
@@ -628,10 +634,22 @@ public class TestHarness implements ErrorInterceptor {
                 return null;
             }
             buf.resetReaderIndex();
+            Charset charset = UTF_8;
+            if (headers.get() != null && headers.get().contains(HttpHeaderNames.CONTENT_TYPE)) {
+                MediaType mt = Headers.CONTENT_TYPE.toValue(headers.get().get(HttpHeaderNames.CONTENT_TYPE));
+                if (mt != null && mt.charset().isPresent()) {
+                    charset = mt.charset().get();
+                }
+            }
+//            String result = buf.readCharSequence(0, charset).toString();
+//            buf.resetReaderIndex();
+//            return result;
+            buf.resetReaderIndex();
             byte[] b = new byte[buf.readableBytes()];
             buf.readBytes(b);
             buf.resetReaderIndex();
-            return new String(b, "UTF-8");
+            
+            return new String(b, charset);
         }
 
         public String content() throws UnsupportedEncodingException, InterruptedException {
@@ -704,7 +722,6 @@ public class TestHarness implements ErrorInterceptor {
                 if (states.contains(StateType.Cancelled)) {
                     throw new AssertionError("Cancelled");
                 }
-//                System.out.println("AWAIT HEADERS RECEIVED AGAIN - states " + states);
                 await(HeadersReceived);
             }
             HttpResponseStatus actualStatus = getStatus();
@@ -737,7 +754,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         @Override
-        public CallResult assertHasHeader(String name) throws Throwable {
+        public CallResult assertHasHeader(CharSequence name) throws Throwable {
             await(HeadersReceived);
             assertNotNull("Headers never sent", getHeaders());
             String val = getHeaders().get(name);
@@ -755,15 +772,15 @@ public class TestHarness implements ErrorInterceptor {
             return this;
         }
 
-        private HttpHeaders waitForHeaders(String lookingFor) throws InterruptedException {
+        private HttpHeaders waitForHeaders(CharSequence lookingFor) throws InterruptedException {
             await(HeadersReceived);
             HttpHeaders h = getHeaders();
             if (h == null) {
                 await(ContentReceived);
                 h = getHeaders();
             } else {
-                String s = h.get(lookingFor);
-                if (s == null) {
+                Object o = h.get(lookingFor.toString());
+                if (o == null) {
                     await(ContentReceived);
                 }
             }
@@ -912,6 +929,15 @@ public class TestHarness implements ErrorInterceptor {
         public HttpHeaders getHeaders() {
             return headers.get();
         }
+        
+        private String h2s(HttpHeaders hdrs) {
+            StringBuilder sb = new StringBuilder();
+            for (Iterator<Map.Entry<CharSequence, CharSequence>> iter= hdrs.iteratorCharSequence(); iter.hasNext();){
+                Map.Entry<CharSequence, CharSequence> e = iter.next();
+                sb.append(" ").append(e.getKey()).append(": ").append(e.getValue()).append('\n');
+            }
+            return sb.toString();
+        }
 
         /**
          * @param headers the headers to set
@@ -921,8 +947,10 @@ public class TestHarness implements ErrorInterceptor {
                 return;
             }
             HttpHeaders curr = getHeaders();
-            if (curr != null) {
+            if (curr != null && !curr.equals(headers)) {
                 DefaultHttpHeaders hdrs = new DefaultHttpHeaders();
+                hdrs.add(curr);
+                hdrs.add(headers);
                 for (Map.Entry<String, String> e : headers) {
                     hdrs.add(e.getKey(), e.getValue());
                 }
@@ -955,7 +983,8 @@ public class TestHarness implements ErrorInterceptor {
             if (this.content.get() != null && log) {
 //                throw new Error("Replace content? Old: " + bufToString(this.content.get())
 //                        + " NEW " + bufToString(content));
-                System.out.println("Replacing old content: " + bufToString(this.content.get()));
+                content.resetReaderIndex();
+                content.resetReaderIndex();
             }
             this.content.set(content);
         }
@@ -977,6 +1006,22 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
             return this;
+        }
+        
+        public io.netty.handler.codec.http.cookie.Cookie getCookie(CharSequence cookieName) {
+            HttpHeaders headers = getHeaders();
+            for (String cookieHeader : headers.getAll(Headers.SET_COOKIE_B.name())) {
+                io.netty.handler.codec.http.cookie.Cookie cookie = Headers.SET_COOKIE_B.toValue(cookieHeader);
+                if (cookie != null) {
+                    if (Strings.charSequencesEqual(cookie.name(), cookieName, false)) {
+                        return cookie;
+                    }
+                } else if (log) {
+                    System.err.println("Found a cookie header that does not decode to a cookie: '" + cookieHeader + "'");
+                }
+            }
+            return null;
+            
         }
 
         @Override
@@ -1060,7 +1105,7 @@ public class TestHarness implements ErrorInterceptor {
 
         StateType state();
 
-        CallResult assertHasHeader(String name) throws Throwable;
+        CallResult assertHasHeader(CharSequence name) throws Throwable;
 
         CallResult assertHasHeader(HeaderValueType<?> name) throws Throwable;
 
