@@ -41,6 +41,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -67,7 +68,7 @@ import org.junit.runner.RunWith;
 @TestWith({TestHarnessModule.class, TestModule.class, M.class})
 @RunWith(GuiceRunner.class)
 public class TestModuleTest {
-    
+
     static final class M extends AbstractModule {
 
         @Override
@@ -77,11 +78,14 @@ public class TestModuleTest {
     }
 
     @Test
-    public void testCompression(TestHarness harn) throws InterruptedException {
+    public void testCompression(TestHarness harn) throws Throwable {
         final AtomicReference<String> content = new AtomicReference<>();
         final AtomicReference<HttpHeaders> hdrs = new AtomicReference<>();
         final AtomicReference<HttpResponseStatus> stat = new AtomicReference<>();
-        harn.get("/comp") /*.addHeader(Headers.ACCEPT_ENCODING, "gzip") */
+        harn.get("/comp").addHeader(Headers.ACCEPT_ENCODING, HttpHeaderValues.GZIP).go().assertStatus(OK);;
+
+        harn.get("/comp").addHeader(Headers.ACCEPT_ENCODING, HttpHeaderValues.GZIP)
+                .log()
                 .execute(new ResponseHandler<String>(String.class) {
                     @Override
                     protected void receive(HttpResponseStatus status, HttpHeaders headers, String obj) {
@@ -93,7 +97,7 @@ public class TestModuleTest {
 
         assertNotNull(hdrs.get());
         System.out.println("RESPONSE HEADERS:");
-        for (Map.Entry<String,String> e : hdrs.get().entries()) {
+        for (Map.Entry<String, String> e : hdrs.get().entries()) {
             System.out.println(" " + e.getKey() + ": " + e.getValue());
         }
         StringBuilder sb = new StringBuilder();
@@ -104,7 +108,7 @@ public class TestModuleTest {
         assertEquals(OK, stat.get());
         assertEquals(sb.toString(), content.get());
 //        assertEquals("gzip", hdrs.get().get(HttpHeaderNames.CONTENT_ENCODING));
-        
+
     }
 
     @Test

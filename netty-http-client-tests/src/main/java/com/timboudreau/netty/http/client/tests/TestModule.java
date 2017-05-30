@@ -38,6 +38,7 @@ import com.mastfrog.acteur.server.PathFactory;
 import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
+import com.mastfrog.util.Strings;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -47,7 +48,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.DefaultHttpContent;
-import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.FOUND;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -56,7 +57,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import javax.inject.Inject;
 import org.joda.time.Duration;
@@ -265,8 +265,8 @@ public class TestModule extends ServerModule<App> {
             for (int i = 1; i <= 100; i++) {
                 sb.append("Test-").append(i).append('\n');
             }
-            String accepted = evt.getHeader(Headers.ACCEPT_ENCODING);
-            if (accepted == null || !accepted.contains("gzip")) {
+            CharSequence accepted = evt.getHeader(Headers.ACCEPT_ENCODING);
+            if (accepted == null || !Strings.charSequenceContains(accepted, HttpHeaderValues.GZIP, true)) {
                 reply(HttpResponseStatus.BAD_REQUEST, "No Accept-Encoding header - client not "
                         + "configured for compression");
                 return;
@@ -277,7 +277,7 @@ public class TestModule extends ServerModule<App> {
                     ps.println(sb);
                 }
             }
-            add(Headers.stringHeader("X-Internal-Compress"), "true");
+            add(Headers.header("X-Internal-Compress"), "true");
             add(Headers.CONTENT_ENCODING, "gzip");
             bytes = baos.toByteArray();
             ok(Unpooled.wrappedBuffer(bytes));

@@ -281,7 +281,7 @@ public final class CookieStore implements Iterable<Cookie> {
             readLock.unlock();
         }
         Collections.sort(cks);
-        return Headers.COOKIE_B.toString(cks.toArray(new Cookie[cks.size()]));
+        return Headers.COOKIE_B.toCharSequence(cks.toArray(new Cookie[cks.size()])).toString();
     }
 
     @Override

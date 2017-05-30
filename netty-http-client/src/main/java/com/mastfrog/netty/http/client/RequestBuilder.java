@@ -226,7 +226,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             h.headers().add(HttpHeaderNames.CONNECTION, "close");
         }
         if (!noDateHeader) {
-            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toString(DateTime.now()));
+            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toCharSequence(DateTime.now()));
         }
         if (store != null) {
             store.decorate(h);
@@ -249,10 +249,10 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         if (bodyObject instanceof ChunkedContent) {
             body.setB((ChunkedContent) bodyObject);
             if (send100Continue) {
-                addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT.toString()), HttpHeaderValues.CONTINUE.toString());
+                addHeader(Headers.EXPECT, HttpHeaderValues.CONTINUE);
             }
             addHeader(Headers.CONTENT_TYPE, contentType);
-            addHeader(Headers.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED.toString());
+            addHeader(Headers.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
             return this;
         } else if (bodyObject instanceof ByteBuf) {
             buf = (ByteBuf) bodyObject;
@@ -266,7 +266,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         }
         body.set(buf);
         if (send100Continue) {
-            addHeader(Headers.stringHeader(HttpHeaderNames.EXPECT.toString()), HttpHeaderValues.CONTINUE.toString());
+            addHeader(Headers.EXPECT, HttpHeaderValues.CONTINUE);
         }
         addHeader(Headers.CONTENT_LENGTH, (long) buf.readableBytes());
         addHeader(Headers.CONTENT_TYPE, contentType);
