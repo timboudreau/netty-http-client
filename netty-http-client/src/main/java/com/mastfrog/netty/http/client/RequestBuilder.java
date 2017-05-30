@@ -143,6 +143,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         return this;
     }
 
+    @Override
     public RequestBuilder basicAuthentication(String username, String password) {
         addHeader(Headers.AUTHORIZATION, new BasicCredentials(username, password));
         return this;
@@ -160,6 +161,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     private boolean noDateHeader;
 
+    @Override
     public RequestBuilder noDateHeader() {
         noDateHeader = true;
         return this;
@@ -167,6 +169,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     private boolean noConnectionHeader;
 
+    @Override
     public RequestBuilder noConnectionHeader() {
         noConnectionHeader = true;
         return this;
@@ -174,11 +177,13 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     private boolean noHostHeader;
 
+    @Override
     public RequestBuilder noHostHeader() {
         noHostHeader = true;
         return this;
     }
 
+    @Override
     public RequestBuilder setCookieStore(CookieStore store) {
         this.store = store;
         return this;
@@ -229,11 +234,12 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         return h;
     }
 
+    @Override
     public URL toURL() {
         return url.create();
     }
 
-    private Either<ByteBuf, ChunkedContent> body = new Either<>(ByteBuf.class, ChunkedContent.class);
+    private final Either<ByteBuf, ChunkedContent> body = new Either<>(ByteBuf.class, ChunkedContent.class);
     boolean send100Continue = true;
 
     @Override
@@ -310,7 +316,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         private final HeaderValueType<T> type;
         private final T value;
 
-        public Entry(HeaderValueType<T> type, T value) {
+        Entry(HeaderValueType<T> type, T value) {
             this.type = type;
             this.value = value;
         }

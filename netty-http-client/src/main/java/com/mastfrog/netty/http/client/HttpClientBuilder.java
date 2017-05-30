@@ -55,10 +55,10 @@ public final class HttpClientBuilder {
 
     private static final int DEFAULT_THREAD_COUNT = 4;
     private int threadCount = -1;
-    private int maxChunkSize = 65536;
+    private int maxChunkSize = 65_536;
     private boolean compression = true;
-    private int maxInitialLineLength = 2048;
-    private int maxHeadersSize = 16384;
+    private int maxInitialLineLength = 2_048;
+    private int maxHeadersSize = 16_384;
     private boolean followRedirects = true;
     private String userAgent;
     private final List<RequestInterceptor> interceptors = new LinkedList<>();
@@ -95,7 +95,7 @@ public final class HttpClientBuilder {
      */
     public <T> HttpClientBuilder addMarshaller(Class<T> forType, Marshaller<T, ByteBuf> marshaller) {
         Checks.notNull("marshaller", marshaller);
-        marshallers.add(new MarshallerEntry<T>(forType, marshaller));
+        marshallers.add(new MarshallerEntry<>(forType, marshaller));
         return this;
     }
 
@@ -303,7 +303,7 @@ public final class HttpClientBuilder {
 
         private final AddressResolver<T> singleResolver;
 
-        public OneResolverGroup(AddressResolver<T> singleResolver) {
+        OneResolverGroup(AddressResolver<T> singleResolver) {
             this.singleResolver = singleResolver;
         }
 
@@ -418,7 +418,7 @@ public final class HttpClientBuilder {
         private final ChannelOption<T> option;
         private final T value;
 
-        public ChannelOptionSetting(ChannelOption<T> option, T value) {
+        ChannelOptionSetting(ChannelOption<T> option, T value) {
             this.option = option;
             this.value = value;
         }
@@ -440,7 +440,7 @@ public final class HttpClientBuilder {
         private final Class<T> type;
         private final Marshaller<T,ByteBuf> marshaller;
 
-        public MarshallerEntry(Class<T> type, Marshaller<T, ByteBuf> marshaller) {
+        MarshallerEntry(Class<T> type, Marshaller<T, ByteBuf> marshaller) {
             this.type = type;
             this.marshaller = marshaller;
         }
@@ -449,12 +449,13 @@ public final class HttpClientBuilder {
             marshallers.add(type, marshaller);
         }
         
+        @Override
         public boolean equals(Object o) {
             return o == null ? false : o == this ? true :
-                    o instanceof MarshallerEntry<?> && ((MarshallerEntry<?>) o).type == type ? 
-                    true : false;
+                    o instanceof MarshallerEntry<?> && ((MarshallerEntry<?>) o).type == type;
         }
         
+        @Override
         public int hashCode() {
             return type.hashCode();
         }

@@ -50,7 +50,7 @@ final class RequestInfo {
     final boolean dontAggregate;
     final ChunkedContent chunkedBody;
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, 
+    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, 
             Duration timeout, DateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
         this.url = url;
         this.req = req;
@@ -64,7 +64,7 @@ final class RequestInfo {
         this.chunkedBody = chunkedBody;
     }
 
-    public RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
+    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
         this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer, noAggregate, chunkedBody);
     }
     

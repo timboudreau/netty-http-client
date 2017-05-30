@@ -267,9 +267,10 @@ public final class CookieStore implements Iterable<Cookie> {
         }
     }
 
+    @Override
     public String toString() {
         Lock readLock = lock.readLock();
-        List<Cookie> cks = new ArrayList<Cookie>();
+        List<Cookie> cks = new ArrayList<>();
         readLock.lock();
         try {
             if (cookies.isEmpty()) {
@@ -286,7 +287,7 @@ public final class CookieStore implements Iterable<Cookie> {
     @Override
     public Iterator<Cookie> iterator() {
         Lock readLock = lock.readLock();
-        List<Cookie> cks = new ArrayList<Cookie>();
+        List<Cookie> cks = new ArrayList<>();
         readLock.lock();
         try {
             cks.addAll(cookies);
@@ -373,10 +374,12 @@ public final class CookieStore implements Iterable<Cookie> {
         }
     }
 
+    @Override
     public int hashCode() {
         return cookies.hashCode();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o instanceof CookieStore) {
             return toString().equals(o.toString());
@@ -389,12 +392,12 @@ public final class CookieStore implements Iterable<Cookie> {
         private final Cookie delegate;
         private final DateTime timestamp;
 
-        public DateCookie(Cookie delegate) {
+        DateCookie(Cookie delegate) {
             this.delegate = delegate;
             timestamp = DateTime.now();
         }
 
-        public DateCookie(Cookie delegate, DateTime timestamp) {
+        DateCookie(Cookie delegate, DateTime timestamp) {
             this.delegate = delegate;
             this.timestamp = timestamp;
         }

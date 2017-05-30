@@ -58,7 +58,7 @@ class LocalhostOnlyAddressResolverGroup extends AddressResolverGroup<InetSocketA
 
     static class Res extends AbstractAddressResolver<InetSocketAddress> {
 
-        public Res(EventExecutor executor) {
+        Res(EventExecutor executor) {
             super(executor, InetSocketAddress.class);
         }
 

@@ -53,7 +53,7 @@ final class Initializer extends ChannelInitializer<Channel> {
     private final int maxInitialLineLength;
     private final boolean compress;
 
-    public Initializer(HostAndPort hostPort, ChannelInboundHandlerAdapter handler, SslContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
+    Initializer(HostAndPort hostPort, ChannelInboundHandlerAdapter handler, SslContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
         this.hostPort = hostPort;
         this.handler = handler;
         this.context = context;
@@ -81,7 +81,7 @@ final class Initializer extends ChannelInitializer<Channel> {
     // Ensure exceptions during handshaking get propagated
     private static class ExceptionForwardingSslHandler extends SslHandler {
 
-        public ExceptionForwardingSslHandler(SSLEngine engine) {
+        ExceptionForwardingSslHandler(SSLEngine engine) {
             super(engine);
         }
 

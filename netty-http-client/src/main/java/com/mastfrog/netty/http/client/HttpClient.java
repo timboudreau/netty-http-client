@@ -418,7 +418,7 @@ public final class HttpClient {
 
         private final URL url;
 
-        public AdapterCloseNotifier(URL url) {
+        AdapterCloseNotifier(URL url) {
             this.url = url;
         }
 
@@ -437,7 +437,7 @@ public final class HttpClient {
         private final ResponseHandler<?> r;
         private final RequestInfo in;
 
-        public TimeoutTimerTask(AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, RequestInfo in) {
+        TimeoutTimerTask(AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, RequestInfo in) {
             Checks.notNull("in", in);
             Checks.notNull("cancelled", cancelled);
             this.cancelled = cancelled;
@@ -665,7 +665,7 @@ public final class HttpClient {
 
         private final CookieStore store;
 
-        public StoreHandler(CookieStore store) {
+        StoreHandler(CookieStore store) {
             this.store = store;
         }
 

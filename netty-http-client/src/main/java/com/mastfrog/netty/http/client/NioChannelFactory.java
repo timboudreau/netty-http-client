@@ -38,6 +38,7 @@ import java.nio.channels.SocketChannel;
  */
 final class NioChannelFactory implements ChannelFactory<NioSocketChannel> {
 
+    @Override
     public NioSocketChannel newChannel() {
         try {
             return new NioSocketChannel(SocketChannel.open());

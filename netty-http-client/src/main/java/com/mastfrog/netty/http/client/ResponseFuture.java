@@ -164,7 +164,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         return lastState.get();
     }
 
-    private AtomicReference<StateType> lastState = new AtomicReference<StateType>();
+    private final AtomicReference<StateType> lastState = new AtomicReference<>();
 
     @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {

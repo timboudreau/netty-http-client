@@ -104,7 +104,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         private int readableBytes;
         private final boolean dontAggregate;
 
-        public ResponseState(ChannelHandlerContext ctx, boolean dontAggregate) {
+        ResponseState(ChannelHandlerContext ctx, boolean dontAggregate) {
             aggregateContent = ctx.alloc().compositeBuffer();
             this.dontAggregate = dontAggregate;
         }
@@ -180,6 +180,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         }
     }
 
+    @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
@@ -241,7 +242,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             state.aggregateContent.resetReaderIndex();
             boolean last = c instanceof LastHttpContent;
             if (!last && state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH) != null) {
-                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH));
+                long len = Headers.CONTENT_LENGTH.toValue(state.resp.headers().get(HttpHeaderNames.CONTENT_LENGTH)).longValue();
                 last = state.readableBytes() >= len;
             }
             if (last) {
