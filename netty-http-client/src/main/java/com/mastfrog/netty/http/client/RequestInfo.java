@@ -25,11 +25,11 @@ package com.mastfrog.netty.http.client;
 
 import com.mastfrog.url.URL;
 import io.netty.handler.codec.http.HttpRequest;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.joda.time.DateTime;
-import org.joda.time.Duration;
 
 /**
  *
@@ -44,14 +44,14 @@ final class RequestInfo {
     final ResponseHandler<?> r;
     final AtomicInteger redirectCount = new AtomicInteger();
     final Duration timeout;
-    final DateTime startTime;
+    final ZonedDateTime startTime;
     volatile boolean listenerAdded;
     TimerTask timer;
     final boolean dontAggregate;
     final ChunkedContent chunkedBody;
 
     RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, 
-            Duration timeout, DateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
+            Duration timeout, ZonedDateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
@@ -65,11 +65,11 @@ final class RequestInfo {
     }
 
     RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
-        this(url, req, cancelled, handle, r, timeout, DateTime.now(), timer, noAggregate, chunkedBody);
+        this(url, req, cancelled, handle, r, timeout, ZonedDateTime.now(), timer, noAggregate, chunkedBody);
     }
     
     Duration age() {
-        return new Duration(startTime, DateTime.now());
+        return Duration.between(startTime, ZonedDateTime.now());
     }
     
     Duration remaining() {
@@ -78,7 +78,7 @@ final class RequestInfo {
 
     boolean isExpired() {
         if (timeout != null) {
-            return DateTime.now().isAfter(startTime.plus(timeout));
+            return ZonedDateTime.now().isAfter(startTime.plus(timeout));
         }
         return false;
     }

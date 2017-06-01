@@ -30,7 +30,7 @@ import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
 import com.timboudreau.netty.http.client.tests.TestModuleTest.M;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.joda.time.Duration;
+import java.time.Duration;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,7 +46,7 @@ public class RedirectTest {
     public void testRedirects(TestHarness harn) throws Throwable {
         harn.get("redir").log().go().assertStatus(HttpResponseStatus.OK).assertContent("Got it\n");
         // Test that redirects time out correctly
-        CallResult res = harn.get("redir").log().setTimeout(Duration.standardSeconds(1)).go();
+        CallResult res = harn.get("redir").log().setTimeout(Duration.ofSeconds(1)).go();
         res.await();
         System.out.println("RESULT " + res);
         System.out.println("STATUS " + res.status());

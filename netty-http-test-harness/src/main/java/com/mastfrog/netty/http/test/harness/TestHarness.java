@@ -52,7 +52,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import org.joda.time.Duration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -62,10 +61,10 @@ import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Strings;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.util.CharsetUtil;
 import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
@@ -263,7 +262,7 @@ public class TestHarness implements ErrorInterceptor {
     public static class TestRequestBuilder implements HttpRequestBuilder {
 
         private final HttpRequestBuilder bldr;
-        private Duration timeout = Duration.standardSeconds(10);
+        private Duration timeout = Duration.ofSeconds(10);
         private final ObjectMapper mapper;
 
         TestRequestBuilder(HttpRequestBuilder bldr, ObjectMapper mapper) {
@@ -522,7 +521,7 @@ public class TestHarness implements ErrorInterceptor {
 
         public void run() {
             try {
-                Thread.sleep(timeout.getMillis());
+                Thread.sleep(timeout.toMillis());
                 timedOut.set(true);
                 timeoutWait.countDown();
                 if (!states.contains(StateType.Closed)) {
@@ -555,7 +554,7 @@ public class TestHarness implements ErrorInterceptor {
             boolean updateState = true;
             switch (state.stateType()) {
                 case Connected:
-                    if (timeout.getMillis() != Long.MAX_VALUE) {
+                    if (timeout.toMillis() != Long.MAX_VALUE) {
                         Thread t = new Thread(this);
                         t.setDaemon(true);
                         t.setName("Timeout thread for " + url.getPathAndQuery());
@@ -610,7 +609,7 @@ public class TestHarness implements ErrorInterceptor {
             if (log) {
                 System.out.println("WAIT ON " + latch);
             }
-            latch.await(timeout.getMillis(), TimeUnit.MILLISECONDS);
+            latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -684,7 +683,7 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult assertTimedOut() throws Throwable {
             try {
-                timeoutWait.await(timeout.getMillis() * 2, TimeUnit.MILLISECONDS);
+                timeoutWait.await(timeout.toMillis() * 2, TimeUnit.MILLISECONDS);
             } catch (InterruptedException ex) {
                 //do nothing
             }

@@ -28,6 +28,7 @@ import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.time.TimeUtil;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
@@ -36,6 +37,9 @@ import io.netty.handler.codec.http.HttpRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,8 +52,6 @@ import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import org.joda.time.DateTime;
-import org.joda.time.Duration;
 
 /**
  * Stores cookies from responses and decorates requests with them where
@@ -313,7 +315,7 @@ public final class CookieStore implements Iterable<Cookie> {
             Map<String, Object> m = new HashMap<>();
             m.put("domain", ck.domain());
             m.put("maxAge", ck.maxAge());
-            m.put("timestamp", ck.getTimestamp().getMillis());
+            m.put("timestamp", TimeUtil.toUnixTimestamp(ck.getTimestamp()));
             m.put("path", ck.path());
             m.put("name", ck.name());
             m.put("value", ck.value());
@@ -341,7 +343,7 @@ public final class CookieStore implements Iterable<Cookie> {
             String comment = (String) m.get("comment");
             String commentUrl = (String) m.get("commentUrl");
             List<Integer> ports = (List<Integer>) m.get("ports");
-            DateTime ts = timestamp == null ? DateTime.now() : new DateTime(timestamp.longValue());
+            ZonedDateTime ts = timestamp == null ? ZonedDateTime.now() : TimeUtil.fromUnixTimestamp(timestamp.longValue());
             DateCookie cookie = new DateCookie(new DefaultCookie(name, value), ts);
             if (cookie.isExpired()) {
                 continue;
@@ -390,19 +392,19 @@ public final class CookieStore implements Iterable<Cookie> {
     static final class DateCookie implements Cookie {
 
         private final Cookie delegate;
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
 
         DateCookie(Cookie delegate) {
             this.delegate = delegate;
-            timestamp = DateTime.now();
+            timestamp = ZonedDateTime.now();
         }
 
-        DateCookie(Cookie delegate, DateTime timestamp) {
+        DateCookie(Cookie delegate, ZonedDateTime timestamp) {
             this.delegate = delegate;
             this.timestamp = timestamp;
         }
 
-        public DateTime getTimestamp() {
+        public ZonedDateTime getTimestamp() {
             return timestamp;
         }
 
@@ -412,14 +414,14 @@ public final class CookieStore implements Iterable<Cookie> {
             }
             Duration dur;
             try {
-                dur = Duration.standardSeconds(maxAge());
+                dur = Duration.ofSeconds(maxAge());
             } catch (ArithmeticException ex) {
                 // A number high enough that * 1000 it is > Long.MAX_VALUE will overflow
-                dur = new Duration(Long.MAX_VALUE);
+                dur = Duration.ofDays(365 * 20);
             }
             try {
-                return timestamp.plus(dur).isBefore(DateTime.now());
-            } catch (ArithmeticException e) {
+                return timestamp.plus(dur).isBefore(ZonedDateTime.now());
+            } catch (DateTimeException e) {
                 // This also can overflow
                 return false;
             }

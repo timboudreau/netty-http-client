@@ -29,7 +29,7 @@ import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
 import java.io.IOException;
-import org.joda.time.Duration;
+import java.time.Duration;
 
 /**
  * Builds an HTTP request, allows for adding listeners for response events, and

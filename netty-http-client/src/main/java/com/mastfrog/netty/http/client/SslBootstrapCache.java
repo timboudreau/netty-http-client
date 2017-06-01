@@ -36,9 +36,9 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolverGroup;
+import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import org.joda.time.Duration;
 
 /**
  *
@@ -101,14 +101,14 @@ final class SslBootstrapCache {
             Bootstrap bootstrapSsl = new Bootstrap();
             bootstrapSsl.group(group);
             bootstrapSsl.handler(new Initializer(k, handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress));
-            bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
+//            bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             if (resolver != null) {
                 bootstrapSsl.resolver(resolver);
             }
             bootstrapSsl.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             if (timeout != null) {
-                bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
+                bootstrapSsl.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.toMillis());
             }
             for (HttpClientBuilder.ChannelOptionSetting<?> setting : settings) {
                 setting.apply(bootstrapSsl);

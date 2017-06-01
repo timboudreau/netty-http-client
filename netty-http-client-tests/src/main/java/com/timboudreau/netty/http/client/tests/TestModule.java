@@ -57,9 +57,9 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.zip.GZIPOutputStream;
 import javax.inject.Inject;
-import org.joda.time.Duration;
 
 /**
  * A test application
@@ -216,7 +216,7 @@ public class TestModule extends ServerModule<App> {
     static class DelayActeur extends Acteur {
 
         DelayActeur() {
-            response().setDelay(Duration.standardSeconds(1));
+            response().setDelay(Duration.ofSeconds(1));
             next();
         }
     }
@@ -278,7 +278,7 @@ public class TestModule extends ServerModule<App> {
                 }
             }
             add(Headers.header("X-Internal-Compress"), "true");
-            add(Headers.CONTENT_ENCODING, "gzip");
+            add(Headers.CONTENT_ENCODING, HttpHeaderValues.GZIP);
             bytes = baos.toByteArray();
             ok(Unpooled.wrappedBuffer(bytes));
         }

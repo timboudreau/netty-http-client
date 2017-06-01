@@ -60,6 +60,7 @@ import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import java.net.ConnectException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -73,7 +74,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.joda.time.Duration;
 
 /**
  * A simple asynchronous HTTP client with an emphasis on ease of use and a
@@ -333,7 +333,7 @@ public final class HttpClient {
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
             bootstrap.option(ChannelOption.SO_REUSEADDR, false);
             if (timeout != null) {
-                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.getMillis());
+                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) timeout.toMillis());
             }
             for (ChannelOptionSetting<?> setting : settings) {
                 setting.apply(bootstrap);
@@ -519,7 +519,7 @@ public final class HttpClient {
                 info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate, chunked);
                 if (timeout != null) {
                     timerTask = new TimeoutTimerTask(cancelled, handle, r, info);
-                    timer.schedule(timerTask, timeout.getMillis());
+                    timer.schedule(timerTask, timeout.toMillis());
                 }
                 info.timer = timerTask;
             }

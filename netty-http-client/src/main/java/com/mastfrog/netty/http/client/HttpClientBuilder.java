@@ -37,6 +37,7 @@ import io.netty.resolver.AddressResolver;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.concurrent.EventExecutor;
 import java.net.SocketAddress;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -44,7 +45,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import org.joda.time.Duration;
 
 /**
  * Builds an HTTP client.

@@ -47,10 +47,10 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.LinkedList;
 import java.util.List;
-import org.joda.time.DateTime;
-import org.joda.time.Duration;
 
 /**
  *
@@ -76,8 +76,8 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     @Override
     public HttpRequestBuilder setTimeout(Duration timeout) {
-        if (timeout != null && timeout.getMillis() == 0) {
-            throw new IllegalArgumentException("Cannot set timeout to 0");
+        if (timeout != null && timeout.toMillis() <= 0) {
+            throw new IllegalArgumentException("Cannot set timeout to <= 0");
         }
         this.timeout = timeout;
         return this;
@@ -226,7 +226,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
             h.headers().add(HttpHeaderNames.CONNECTION, "close");
         }
         if (!noDateHeader) {
-            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toCharSequence(DateTime.now()));
+            h.headers().add(HttpHeaderNames.DATE, Headers.DATE.toCharSequence(ZonedDateTime.now()));
         }
         if (store != null) {
             store.decorate(h);

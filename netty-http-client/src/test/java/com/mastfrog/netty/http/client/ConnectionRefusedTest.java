@@ -27,11 +27,11 @@ import com.google.common.collect.Sets;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.joda.time.Duration;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
@@ -44,10 +44,10 @@ public class ConnectionRefusedTest {
     @Test
     public void testTimeout() throws Throwable {
         final CountDownLatch latch = new CountDownLatch(2);
-        HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
+        HttpClient client = HttpClient.builder().setTimeout(Duration.ofSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
         final Set<StateType> states = Sets.newConcurrentHashSet();
-        client.get().setTimeout(new Duration(2)).setURL("http://10.0.0.254:3720/abcd")
+        client.get().setTimeout(Duration.ofMillis(2)).setURL("http://10.0.0.254:3720/abcd")
                 .onEvent(new Receiver<State<?>>() {
 
                     @Override
@@ -82,7 +82,7 @@ public class ConnectionRefusedTest {
     @Test
     public void test() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        HttpClient client = HttpClient.builder().setTimeout(Duration.standardSeconds(3)).build();
+        HttpClient client = HttpClient.builder().setTimeout(Duration.ofSeconds(3)).build();
         final AtomicBoolean notified = new AtomicBoolean();
         client.get().setURL("http://192.168.1.254:10001/abcd")
                 .onEvent(new Receiver<State<?>>() {

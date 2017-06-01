@@ -26,16 +26,14 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
-import java.util.HashSet;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.joda.time.DateTime;
-import org.joda.time.Duration;
 
 /**
  * Returned from launching an HTTP request; attach handlers using the
@@ -53,7 +51,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     final List<Receiver<State<?>>> any = new CopyOnWriteArrayList<>();
     private volatile ChannelFuture future;
     private final CountDownLatch latch = new CountDownLatch(1);
-    private final DateTime start = DateTime.now();
+    private final ZonedDateTime start = ZonedDateTime.now();
 
     ResponseFuture(AtomicBoolean cancelled) {
         this.cancelled = cancelled;
@@ -253,8 +251,8 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 
     @Override
     public int compareTo(ResponseFuture t) {
-        DateTime mine = this.start;
-        DateTime other = t.start;
+        ZonedDateTime mine = this.start;
+        ZonedDateTime other = t.start;
         return mine.compareTo(other);
     }
 }

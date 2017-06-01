@@ -30,7 +30,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
-import org.joda.time.Duration;
+import java.time.Duration;
 
 /**
  * Represents the current state of a request, used in notifications.
