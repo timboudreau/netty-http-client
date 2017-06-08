@@ -216,7 +216,7 @@ public class TestModule extends ServerModule<App> {
     static class DelayActeur extends Acteur {
 
         DelayActeur() {
-            response().setDelay(Duration.ofSeconds(1));
+            response().delayedBy(Duration.ofSeconds(1));
             next();
         }
     }
