@@ -107,7 +107,7 @@ public class TestModule extends ServerModule<App> {
         IncrementalCookie(HttpEvent evt) {
             String value = "1";
             Cookie cookie = null;
-            Cookie[] cookies = evt.getHeader(Headers.COOKIE_B);
+            Cookie[] cookies = evt.header(Headers.COOKIE_B);
             if (cookies != null) {
                 for (Cookie ck : cookies) {
                     if ("xid".equals(ck.name())) {
@@ -138,15 +138,15 @@ public class TestModule extends ServerModule<App> {
 
         @Inject
         ParamsCookie(HttpEvent evt) {
-            String key = evt.getParameter("key");
-            String value = evt.getParameter("value");
+            String key = evt.urlParameter("key");
+            String value = evt.urlParameter("value");
             if (key == null || value == null) {
                 setState(new RespondWith(Err.badRequest("Missing params")));
                 return;
             }
             DefaultCookie ck = new DefaultCookie(key, value);
             ck.setMaxAge(500);
-            ck.setPath(evt.getPath().toStringWithLeadingSlash());
+            ck.setPath(evt.path().toStringWithLeadingSlash());
             add(Headers.SET_COOKIE_B, ck);
             ok(value);
         }
@@ -265,7 +265,7 @@ public class TestModule extends ServerModule<App> {
             for (int i = 1; i <= 100; i++) {
                 sb.append("Test-").append(i).append('\n');
             }
-            CharSequence accepted = evt.getHeader(Headers.ACCEPT_ENCODING);
+            CharSequence accepted = evt.header(Headers.ACCEPT_ENCODING);
             if (accepted == null || !Strings.charSequenceContains(accepted, HttpHeaderValues.GZIP, true)) {
                 reply(HttpResponseStatus.BAD_REQUEST, "No Accept-Encoding header - client not "
                         + "configured for compression");
