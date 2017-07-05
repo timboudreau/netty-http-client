@@ -174,7 +174,7 @@ public class HttpClientTest {
                         });
                     }
                 }
-            }).execute().await();
+            }).execute().await(2, TimeUnit.SECONDS);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -298,35 +298,33 @@ public class HttpClientTest {
                 .onEvent(new Receiver<State<?>>() {
                     public void receive(State<?> state) {
                         stateTypes.add(state.stateType());
-                        if (state.stateType() == StateType.Finished) {
-                            DefaultFullHttpResponse d = (DefaultFullHttpResponse) state.get();
-                            assertions.add(new DeferredAssertions.Assertion() {
-                                public void exec() {
+                        if (null != state.stateType()) switch (state.stateType()) {
+                            case Finished:
+                                DefaultFullHttpResponse d = (DefaultFullHttpResponse) state.get();
+                                assertions.add(() -> {
                                     assertTrue(am.started.contains(ur));
-                                }
-                            });
-                        } else if (state.stateType() == StateType.Closed) {
-                            assertions.add(new DeferredAssertions.Assertion() {
-                                public void exec() {
+                        }); break;
+                            case Closed:
+                                assertions.add(() -> {
                                     assertTrue(am.ended.contains(ur));
-                                }
-                            });
-                        } else if (state.stateType() == StateType.FullContentReceived) {
-                            ByteBuf buf = (ByteBuf) state.get();
-                            byte[] bytes = new byte[buf.readableBytes()];
-                            buf.getBytes(0, bytes);
-                            final String content = new String(bytes, CharsetUtil.UTF_8);
-                            assertions.add(new DeferredAssertions.Assertion() {
-                                public void exec() {
+                        }); break;
+                            case FullContentReceived:
+                                ByteBuf buf = (ByteBuf) state.get();
+                                byte[] bytes = new byte[buf.readableBytes()];
+                                buf.getBytes(0, bytes);
+                                final String content = new String(bytes, CharsetUtil.UTF_8);
+                                assertions.add(() -> {
                                     assertEquals("Hey you, This is a test", content);
-                                }
-                            });
-                        } else if (state.stateType() == StateType.HeadersReceived) {
-                            xheader[0] = ((HttpResponse) state.get()).headers().get("X-foo");
+                        }); break;
+                            case HeadersReceived:
+                                xheader[0] = ((HttpResponse) state.get()).headers().get("X-foo");
+                                break;
+                            default:
+                                break;
                         }
                     }
                 }).execute();
-        f.await(5, TimeUnit.SECONDS);
+        f.await(5, TimeUnit.SECONDS).throwIfError();
         server.throwLast();
         assertions.exec();
         assertTrue(stateTypes.contains(StateType.Connected));
@@ -389,7 +387,7 @@ public class HttpClientTest {
                 }
             }
         });
-        h.await().throwIfError();
+        h.await(5, TimeUnit.SECONDS).throwIfError();
         assertEquals(7, chunkCount.get()); //6 including empty last chunk
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 5; i++) {
