@@ -143,6 +143,7 @@
                     <systemPropertyVariables>
                         <forkNumber>${surefire.forkNumber}</forkNumber>
                         <io.netty.leakDetection.level>advanced</io.netty.leakDetection.level>
+                        <java.util.logging.config>${basedir}/test-logging.properties</java.util.logging.config>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

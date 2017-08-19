@@ -28,6 +28,7 @@ import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
+import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import java.io.IOException;
 import java.time.Duration;
 
@@ -254,4 +255,14 @@ public interface HttpRequestBuilder {
      * @return this
      */
     HttpRequestBuilder dontAggregateResponse();
+
+    /**
+     * Set the version of web socket protocol to use when handshaking.
+     *
+     * @param version The version - UNKNOWN not allowed as a value.
+     * @throws IllegalArgumentException if <code>WebSocketVersion.UNKNOWN</code>
+     * is passed.
+     * @return this
+     */
+    HttpRequestBuilder setWebSocketVersion(WebSocketVersion version);
 }

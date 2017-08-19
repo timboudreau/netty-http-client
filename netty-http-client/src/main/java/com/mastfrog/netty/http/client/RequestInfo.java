@@ -23,8 +23,15 @@
  */
 package com.mastfrog.netty.http.client;
 
+import com.mastfrog.url.Protocols;
 import com.mastfrog.url.URL;
+import com.mastfrog.util.Exceptions;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
+import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
+import io.netty.handler.codec.http.websocketx.WebSocketVersion;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.TimerTask;
@@ -49,9 +56,12 @@ final class RequestInfo {
     TimerTask timer;
     final boolean dontAggregate;
     final ChunkedContent chunkedBody;
+    WebSocketClientHandshaker websocketHandshaker;
+    final WebSocketVersion websocketVersion;
 
-    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, 
-            Duration timeout, ZonedDateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
+    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r,
+            Duration timeout, ZonedDateTime startTime, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody,
+            WebSocketVersion websocketVersion) {
         this.url = url;
         this.req = req;
         this.cancelled = cancelled;
@@ -62,16 +72,17 @@ final class RequestInfo {
         this.timer = timer;
         this.dontAggregate = noAggregate;
         this.chunkedBody = chunkedBody;
+        this.websocketVersion = websocketVersion;
     }
 
-    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody) {
-        this(url, req, cancelled, handle, r, timeout, ZonedDateTime.now(), timer, noAggregate, chunkedBody);
+    RequestInfo(URL url, HttpRequest req, AtomicBoolean cancelled, ResponseFuture handle, ResponseHandler<?> r, Duration timeout, TimerTask timer, boolean noAggregate, ChunkedContent chunkedBody, WebSocketVersion websocketVersion) {
+        this(url, req, cancelled, handle, r, timeout, ZonedDateTime.now(), timer, noAggregate, chunkedBody, websocketVersion);
     }
-    
+
     Duration age() {
         return Duration.between(startTime, ZonedDateTime.now());
     }
-    
+
     Duration remaining() {
         return timeout == null ? null : timeout.minus(age());
     }
@@ -82,11 +93,28 @@ final class RequestInfo {
         }
         return false;
     }
-    
+
     void cancelTimer() {
         if (timer != null) {
             timer.cancel();
         }
+    }
+
+    WebSocketClientHandshaker handshaker() {
+        if (websocketHandshaker != null) {
+            return websocketHandshaker;
+        }
+        URL websocketUrl = url.withProtocol(url.getProtocol().isSecure() ? Protocols.WSS : Protocols.WS);
+        try {
+            return websocketHandshaker = WebSocketClientHandshakerFactory.newHandshaker(
+                    websocketUrl.toURI(), websocketVersion, null, true, new DefaultHttpHeaders());
+        } catch (URISyntaxException ex) {
+            return Exceptions.chuck(ex);
+        }
+    }
+
+    boolean hasHandshaker() {
+        return websocketHandshaker != null;
     }
 
     @Override

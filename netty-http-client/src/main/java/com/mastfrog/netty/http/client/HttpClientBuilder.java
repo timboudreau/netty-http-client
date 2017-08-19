@@ -71,6 +71,12 @@ public final class HttpClientBuilder {
     private int maxRedirects = -1;
     private ObjectMapper mapper = new ObjectMapper();
     private final Set<MarshallerEntry<?>> marshallers = new HashSet<>();
+    private boolean supportWebsockets;
+
+    public HttpClientBuilder withWebsocketSupport() {
+        supportWebsockets = true;
+        return this;
+    }
 
     /**
      * Set the ObjectMapper used to read and write JSON.
@@ -340,10 +346,24 @@ public final class HttpClientBuilder {
         for (MarshallerEntry<?> m : this.marshallers) {
             m.apply(marshallers);
         }
-        return new HttpClient(compression, maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
-                maxInitialLineLength, maxHeadersSize, followRedirects,
-                userAgent, interceptors, Collections.unmodifiableList(new ArrayList<>(settings)), send100continue,
-                cookies, timeout, sslContext, resolver, group, maxRedirects,  marshallers, mapper);
+        return new HttpClient(compression,
+                maxChunkSize, threadCount == -1 ? DEFAULT_THREAD_COUNT : threadCount,
+                maxInitialLineLength,
+                maxHeadersSize,
+                followRedirects,
+                userAgent,
+                interceptors,
+                Collections.unmodifiableList(new ArrayList<>(settings)),
+                send100continue,
+                cookies,
+                timeout,
+                sslContext,
+                resolver,
+                group,
+                maxRedirects,
+                marshallers,
+                mapper,
+                supportWebsockets);
     }
 
     /**
@@ -435,7 +455,7 @@ public final class HttpClientBuilder {
             bootstrap.option(option, value);
         }
     }
-    
+
     private static final class MarshallerEntry<T> {
         private final Class<T> type;
         private final Marshaller<T,ByteBuf> marshaller;
@@ -444,17 +464,17 @@ public final class HttpClientBuilder {
             this.type = type;
             this.marshaller = marshaller;
         }
-        
+
         <R extends ContentMarshallers<ByteBuf, R>> void apply(ContentMarshallers<ByteBuf, R> marshallers) {
             marshallers.add(type, marshaller);
         }
-        
+
         @Override
         public boolean equals(Object o) {
             return o == null ? false : o == this ? true :
                     o instanceof MarshallerEntry<?> && ((MarshallerEntry<?>) o).type == type;
         }
-        
+
         @Override
         public int hashCode() {
             return type.hashCode();

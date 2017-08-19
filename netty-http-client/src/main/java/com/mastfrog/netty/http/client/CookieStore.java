@@ -185,7 +185,7 @@ public final class CookieStore implements Iterable<Cookie> {
             }
             if (!toSend.isEmpty()) {
                 for (Cookie ck : toSend) {
-                    String headerValue = Headers.COOKIE_B.toString(new Cookie[]{ck});
+                    CharSequence headerValue = Headers.COOKIE_B.toCharSequence(new Cookie[]{ck});
                     req.headers().add(Headers.COOKIE_B.name(), headerValue);
                 }
             }

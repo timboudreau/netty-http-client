@@ -26,9 +26,17 @@ package com.mastfrog.netty.http.client;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +60,8 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
     private volatile ChannelFuture future;
     private final CountDownLatch latch = new CountDownLatch(1);
     private final ZonedDateTime start = ZonedDateTime.now();
+    private Map<StateType, List<Object>> queuedToSend;
+    private final EnumSet<StateType> seenStates = EnumSet.noneOf(StateType.class);
 
     ResponseFuture(AtomicBoolean cancelled) {
         this.cancelled = cancelled;
@@ -63,6 +73,87 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 
     void trigger() {
         latch.countDown();
+    }
+
+    /**
+     * Send some objects through the channel once a given state is reached (if
+     * the state already has been, they will be sent immediately if the channel
+     * is not closed).
+     *
+     * @param stateType The state to trigger sending. Must NOT be a state that
+     * indicates a closed channel, error or failure condition, or pre-connection
+     * state, because there is no channel to use.
+     *
+     * @param o What to send - must be an object Netty's channel pipeline has a
+     * handler for it, such as an HttpContent or ByteBuf or WebSocketFrame (the
+     * main use for this method)
+     * @throws IllegalArgumentException if the state type is one that has no
+     * associated network channel
+     * @return this
+     */
+    public ResponseFuture sendOn(StateType stateType, Object o) {
+        if (queuedToSend == null) {
+            queuedToSend = new HashMap<>();
+        }
+        if (stateType.isFailure() || stateType == StateType.Closed || stateType == StateType.Connecting) {
+            throw new IllegalArgumentException("Cannot send messages after a "
+                    + "failure or close state is reached.  Pick a different "
+                    + "state.");
+        }
+        List<Object> queue = queuedToSend.get(stateType);
+        if (queue == null) {
+            queue = new ArrayList<>(2);
+            queuedToSend.put(stateType, queue);
+        }
+        queue.add(o);
+        sendQueued();
+        return this;
+    }
+
+    private void sendQueued() {
+        if (queuedToSend != null && future != null && future.channel().isWritable()) {
+            List<Object> toSend = new LinkedList<>();
+            Set<StateType> toRemove = EnumSet.noneOf(StateType.class);
+            for (Map.Entry<StateType, List<Object>> e : queuedToSend.entrySet()) {
+                if (seenStates.contains(e.getKey()) && !e.getValue().isEmpty()) {
+                    toSend.addAll(e.getValue());
+                    e.getValue().clear();
+                    toRemove.add(e.getKey());
+                }
+            }
+            for (StateType st : toRemove) {
+                queuedToSend.remove(st);
+            }
+            if (!toSend.isEmpty()) {
+                new SendObjs(toSend).operationComplete(future.channel().newSucceededFuture());
+            }
+        }
+    }
+
+    final class SendObjs implements ChannelFutureListener {
+
+        private final Iterator<Object> objs;
+
+        SendObjs(List<Object> objs) {
+            this.objs = objs.iterator();
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture future) {
+            if (future.isSuccess()) {
+                System.out.println(" Send success.");
+                if (objs.hasNext()) {
+                    Object o = objs.next();
+                    System.out.println("SEND " + o);
+                    future = future.channel().writeAndFlush(o);
+                    if (objs.hasNext()) {
+                        future.addListener(this);
+                    }
+                }
+            } else {
+                event(new State.Error(future.cause()));
+            }
+        }
     }
 
     /**
@@ -166,14 +257,18 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
 
     @SuppressWarnings("unchecked")
     <T> void event(State<T> state) {
+        if (state.stateType().isFailure()) {
+            queuedToSend = null;
+        }
         Checks.notNull("state", state);
+        seenStates.add(state.stateType());
         lastState.set(state.stateType());
         try {
             if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
                 if (!(state.get() instanceof RedirectException)) {
 //                    System.err.println("Suppressing error after cancel");
                     return;
-                } else if (state.get() instanceof RedirectException && ((RedirectException)state.get()).kind() == RedirectException.Kind.INVALID_REDIRECT_URL) {
+                } else if (state.get() instanceof RedirectException && ((RedirectException) state.get()).kind() == RedirectException.Kind.INVALID_REDIRECT_URL) {
                     return;
                 }
             }
@@ -193,6 +288,7 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
             if (state instanceof State.Closed) {
                 latch.countDown();
             }
+            sendQueued();
         }
     }
 

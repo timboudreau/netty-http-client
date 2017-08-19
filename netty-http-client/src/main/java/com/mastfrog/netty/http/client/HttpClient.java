@@ -55,6 +55,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
@@ -164,12 +165,13 @@ public final class HttpClient {
     private final NioChannelFactory channelFactory = new NioChannelFactory();
     private final NettyContentMarshallers marshallers;
     private final ObjectMapper mapper;
+    private final boolean supportWebsockets;
 
     public HttpClient() {
         this(false, 128 * 1024, 12, 8192, 16383, true, null,
                 Collections.<RequestInterceptor>emptyList(),
                 Collections.<ChannelOptionSetting<?>>emptyList(),
-                true, null, null, null, null, null, -1, null, null);
+                true, null, null, null, null, null, -1, null, null, false);
     }
 
     /**
@@ -213,7 +215,8 @@ public final class HttpClient {
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
             CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver,
             NioEventLoopGroup threadPool, int maxRedirects, NettyContentMarshallers marshallers, 
-            ObjectMapper mapper) {
+            ObjectMapper mapper, boolean supportWebsockets) {
+        this.supportWebsockets = supportWebsockets;
         this.mapper = mapper == null ? new ObjectMapper() : mapper;
         this.marshallers = marshallers == null ? NettyContentMarshallers.getDefault(this.mapper) : marshallers;
         group = threadPool == null ? new NioEventLoopGroup(threads, new TF()) : threadPool;
@@ -231,10 +234,10 @@ public final class HttpClient {
         this.send100continue = send100continue;
         this.cookies = cookies;
         this.timeout = timeout;
-        this.handler = new MessageHandlerImpl(followRedirects, this, maxRedirects);
+        this.handler = new MessageHandlerImpl(followRedirects, this, maxRedirects, supportWebsockets);
         sslBootstraps = new SslBootstrapCache(group, this.timeout, sslContext, this.handler,
                 this.maxChunkSize, this.maxInitialLineLength, this.maxHeadersSize, this.compress,
-                this.settings, resolver, channelFactory);
+                this.settings, resolver, channelFactory, supportWebsockets);
     }
 
     private static class TF implements ThreadFactory {
@@ -247,7 +250,6 @@ public final class HttpClient {
             t.setDaemon(true);
             return t;
         }
-
     }
 
     /**
@@ -327,7 +329,8 @@ public final class HttpClient {
             }
             bootstrap.group(group);
             bootstrap.handler(new Initializer(hostAndPort,
-                    handler, null, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress)
+                    handler, null, false, maxChunkSize, maxInitialLineLength, maxHeadersSize, compress,
+                            supportWebsockets)
             );
             bootstrap.option(ChannelOption.TCP_NODELAY, true);
             bootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
@@ -397,7 +400,7 @@ public final class HttpClient {
         }
         copyHeaders(info.req, nue, Headers.HOST);
         nue.headers().set(Headers.HOST.name(), url.getHost().toString());
-        submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate, info.chunkedBody);
+        submit(url, nue, info.cancelled, info.handle, info.r, info, info.remaining(), info.dontAggregate, info.chunkedBody, info.websocketVersion);
     }
 
     private Bootstrap bootstrap;
@@ -486,7 +489,8 @@ public final class HttpClient {
     }
 
     private void submit(final URL url, HttpRequest rq, final AtomicBoolean cancelled, final ResponseFuture handle,
-            final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate, final ChunkedContent chunked) {
+            final ResponseHandler<?> r, RequestInfo info, Duration timeout, boolean noAggregate,
+            final ChunkedContent chunked, WebSocketVersion websocketVersion) {
         if (info != null && info.isExpired()) {
             // In case of a redirect, we may be called with an info that has
             // already expired if the timeout set in the builder has elapsed
@@ -516,7 +520,8 @@ public final class HttpClient {
             TimeoutTimerTask timerTask = null;
             boolean newRequest = info == null;
             if (info == null) {
-                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate, chunked);
+                info = new RequestInfo(url, req, cancelled, handle, r, timeout, timerTask, noAggregate,
+                        chunked, websocketVersion);
                 if (timeout != null) {
                     timerTask = new TimeoutTimerTask(cancelled, handle, r, info);
                     timer.schedule(timerTask, timeout.toMillis());
@@ -722,7 +727,7 @@ public final class HttpClient {
                         = createHandler(State.HeadersReceived.class, new StoreHandler(theStore));
                 handle.handlers.add(entry);
             }
-            submit(u, req, cancelled, handle, r, null, this.timeout, noAggregate, chunkedContent());
+            submit(u, req, cancelled, handle, r, null, this.timeout, noAggregate, chunkedContent(), websocketVersion);
             return handle;
         }
 

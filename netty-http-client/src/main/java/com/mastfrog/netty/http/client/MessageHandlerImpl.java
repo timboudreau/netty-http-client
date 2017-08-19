@@ -29,20 +29,31 @@ import com.mastfrog.url.URL;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
+import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -56,11 +67,13 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     private final boolean followRedirects;
     private final HttpClient client;
     private final int maxRedirects;
+    private final boolean supportWebsockets;
 
-    MessageHandlerImpl(boolean followRedirects, HttpClient client, int maxRedirects) {
+    MessageHandlerImpl(boolean followRedirects, HttpClient client, int maxRedirects, boolean supportWebsockets) {
         this.followRedirects = followRedirects;
         this.client = client;
         this.maxRedirects = maxRedirects == -1 ? DEFAULT_MAX_REDIRECTS : maxRedirects;
+        this.supportWebsockets = supportWebsockets;
     }
 
     @Override
@@ -81,7 +94,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         info.handle.event(new State.Error(cause));
-//        cause.printStackTrace();
     }
 
     private boolean checkCancelled(ChannelHandlerContext ctx) {
@@ -101,6 +113,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         private final CompositeByteBuf aggregateContent;
         volatile HttpResponse resp;
         volatile boolean fullResponseSent;
+        volatile boolean websocketHandshakeSucceeded;
         private int readableBytes;
         private final boolean dontAggregate;
 
@@ -181,8 +194,89 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     @Override
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+//        final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
+//        Protocol proto = info.url.getProtocol();
+//        if (supportWebsockets && (Protocols.WS.match(proto) || Protocols.WSS.match(proto))) {
+//            websocketHandshake(ctx, info);
+//        }
+        System.out.println("  CLIENT handlerAdded PIPELINE NOW: ");
+        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+        });
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("  CLIENT handlerRemoved PIPELINE NOW: ");
+        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+        });
+    }
+
+    void websocketHandshake(ChannelHandlerContext ctx, RequestInfo info) {
+        final ResponseState state = state(ctx, info);
+        CharSequence connectionHeader = state.resp == null ? HttpHeaderValues.UPGRADE : state.resp.headers().get(HttpHeaderNames.CONNECTION);
+        if (connectionHeader != null && HttpHeaderValues.UPGRADE.contentEqualsIgnoreCase(connectionHeader)) {
+            CharSequence upgradeTo = state.resp == null ? HttpHeaderValues.WEBSOCKET : state.resp.headers().get(HttpHeaderNames.UPGRADE);
+            if (upgradeTo != null && HttpHeaderValues.WEBSOCKET.contentEqualsIgnoreCase(upgradeTo)) {
+                final WebSocketClientHandshaker hs = info.handshaker();
+                ChannelPromise handshakePromise = ctx.newPromise();
+                handshakePromise.addListener((ChannelFutureListener) (ChannelFuture future) -> {
+                    if (!future.isSuccess()) {
+                        info.handle.event(new State.Error(future.cause()));
+                    } else {
+                        state.websocketHandshakeSucceeded = true;
+
+                        System.out.println("  CLIENT websocketHandshakeSucceeded PIPELINE NOW: ");
+                        ctx.pipeline().addBefore("handler", "ws", new WSHandler(hs));
+
+                        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+                            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+                        });
+                        info.handle.event(new State.WebsocketHandshakeComplete(hs));
+                    }
+                });
+                hs.handshake(ctx.channel(), handshakePromise);
+            }
+        }
+    }
+
+    final class WSHandler extends WebSocketClientProtocolHandler {
+
+        WSHandler(WebSocketClientHandshaker handshaker) {
+            super(handshaker, false);
+        }
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            System.out.println("WSCPH read " + msg);
+            super.channelRead(ctx, msg);
+        }
+
+        @Override
+        protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) throws Exception {
+            super.decode(ctx, frame, out);
+            System.out.println("WS DECODE " + frame + " into " + out);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
+            info.handle.event(new State.Error(cause));
+        }
+    }
+
+    @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
+        if (checkCancelled(ctx)) {
+            return;
+        }
+        if (msg instanceof FullHttpResponse && info.hasHandshaker() && !info.handshaker().isHandshakeComplete()) {
+            info.handshaker().finishHandshake(ctx.channel(), (FullHttpResponse) msg);
+            return;
+        }
         if (checkCancelled(ctx)) {
             return;
         }
@@ -197,7 +291,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate, info.chunkedBody);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate, info.chunkedBody, info.websocketVersion);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     if (info.redirectCount.getAndIncrement() < maxRedirects) {
                         URL url;
@@ -216,7 +310,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                             info.handle.event(new State.Error(new RedirectException(RedirectException.Kind.INVALID_REDIRECT_URL, redirUrl)));
                             return;
                         }
-                        //XXX handle redirects that contain only a path
                         info.handle.event(new State.Redirect(url));
                         info.handle.cancelled = new AtomicBoolean();
                         client.redirect(meth, url, info);
@@ -231,6 +324,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 RedirectException redirException = new RedirectException(RedirectException.Kind.REDIRECT_LOOP, redirUrl);
                 info.handle.event(new State.Error(redirException));
                 info.handle.cancelled.lazySet(true);
+            }
+            if (redirUrl == null && supportWebsockets) {
+                websocketHandshake(ctx, info);
             }
         } else if (msg instanceof HttpContent) {
             HttpContent c = (HttpContent) msg;
@@ -249,23 +345,14 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 c.content().resetReaderIndex();
                 sendFullResponse(ctx);
             }
+        } else if (msg instanceof WebSocketFrame) {
+            System.out.println("Received web socket frame");
+            WebSocketFrame frame = (WebSocketFrame) msg;
+            info.handle.event(new State.WebSocketFrameReceived(frame));
+            frame.content().resetReaderIndex();
+        } else {
+            info.handle.event(new State.Error(new IllegalStateException("Unknown object decoded: " + msg)));
         }
-//        if (!info.listenerAdded) {
-//            info.listenerAdded = true;
-//            // Handle the case of really old HTTP 1.0 style requests where there
-//            // is no content-length, and the response is terminated by the server
-//            // closing the connection
-//            ctx.channel().closeFuture().addListener(new ChannelFutureListener(){
-//
-//                @Override
-//                public void operationComplete(ChannelFuture f) throws Exception {
-//                    state.content.resetReaderIndex();
-//                    info.handle.event(new State.Closed());
-//                    System.out.println("Termination close");
-//                    sendFullResponse(ctx);
-//                }
-//            });
-//        }
     }
 
     void sendFullResponse(ChannelHandlerContext ctx) {
