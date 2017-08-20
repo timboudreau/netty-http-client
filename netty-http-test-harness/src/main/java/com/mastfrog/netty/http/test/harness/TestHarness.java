@@ -61,6 +61,7 @@ import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Strings;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -271,7 +272,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         @Override
-        public HttpRequestBuilder dontAggregateResponse() {
+        public TestRequestBuilder dontAggregateResponse() {
             bldr.dontAggregateResponse();
             return this;
         }
@@ -439,6 +440,12 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public HttpRequestBuilder noDateHeader() {
             bldr.noDateHeader();
+            return this;
+        }
+
+        @Override
+        public HttpRequestBuilder setWebSocketVersion(WebSocketVersion version) {
+            bldr.setWebSocketVersion(version);
             return this;
         }
     }

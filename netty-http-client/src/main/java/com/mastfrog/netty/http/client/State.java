@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License
  *
  * Copyright 2013 Tim Boudreau.
@@ -30,6 +30,8 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import java.time.Duration;
 
 /**
@@ -40,7 +42,7 @@ import java.time.Duration;
  * @author Tim Boudreau
  */
 public abstract class State<T> {
-    
+
     /**
      * State event when a connection is being attempted.  No payload.
      */
@@ -94,6 +96,13 @@ public abstract class State<T> {
         }
     }
 
+    public static final class WebsocketHandshakeComplete extends State<WebSocketClientHandshaker> {
+
+        public WebsocketHandshakeComplete(WebSocketClientHandshaker handshaker) {
+            super(WebSocketClientHandshaker.class, StateType.WebsocketHandshakeComplete, handshaker);
+        }
+    }
+
     /**
      * State event triggered when one chunk of content has arrived;  if the
      * server is using chunked transfer encoding, this state will be fired
@@ -104,6 +113,13 @@ public abstract class State<T> {
 
         ContentReceived(HttpContent headers) {
             super(HttpContent.class, StateType.ContentReceived, headers);
+        }
+    }
+
+    public static final class WebSocketFrameReceived extends State<WebSocketFrame> {
+
+        WebSocketFrameReceived(WebSocketFrame frame) {
+            super(WebSocketFrame.class, StateType.WebSocketFrameReceived, frame);
         }
     }
 
@@ -149,7 +165,7 @@ public abstract class State<T> {
     }
 
     /**
-     * State event triggered when an exception is thrown somewhere in 
+     * State event triggered when an exception is thrown somewhere in
      * processing of the request or response.  Does not indicate that processing
      * is aborted (close the channel for that), or that further errors will
      * not be thrown.
@@ -160,7 +176,7 @@ public abstract class State<T> {
             super(Throwable.class, StateType.Error, t);
         }
     }
-    
+
     /**
      * State event triggered when a timeout occurs.
      */

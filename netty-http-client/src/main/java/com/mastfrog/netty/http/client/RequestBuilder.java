@@ -35,6 +35,7 @@ import com.mastfrog.url.URLBuilder;
 import com.mastfrog.util.Checks;
 import com.mastfrog.util.Either;
 import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.Strings;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -46,11 +47,14 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -66,6 +70,8 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     Duration timeout;
     private final ByteBufAllocator alloc;
     protected boolean noAggregate;
+    static final WebSocketVersion DEFAULT_WEBSOCKET_VERSION = WebSocketVersion.values()[WebSocketVersion.values().length-1];
+    protected WebSocketVersion websocketVersion = DEFAULT_WEBSOCKET_VERSION;
 
     RequestBuilder(Method method, ByteBufAllocator alloc) {
         this.method = method;
@@ -75,11 +81,23 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     abstract NettyContentMarshallers marshallers();
 
     @Override
-    public HttpRequestBuilder setTimeout(Duration timeout) {
+    public RequestBuilder setTimeout(Duration timeout) {
         if (timeout != null && timeout.toMillis() <= 0) {
             throw new IllegalArgumentException("Cannot set timeout to <= 0");
         }
         this.timeout = timeout;
+        return this;
+    }
+
+    @Override
+    public RequestBuilder setWebSocketVersion(WebSocketVersion version) {
+        if (version == WebSocketVersion.UNKNOWN) {
+            Set<WebSocketVersion> versions = EnumSet.allOf(WebSocketVersion.class);
+            versions.remove(version);
+            throw new IllegalArgumentException(version + " not allowed - must "
+                    + "be one of " + Strings.join(',', versions));
+        }
+        this.websocketVersion = version;
         return this;
     }
 
@@ -322,7 +340,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         }
 
         void addTo(HttpHeaders h) {
-            h.add(type.name(), type.toString(value));
+            h.add(type.name(), type.toCharSequence(value));
         }
     }
 

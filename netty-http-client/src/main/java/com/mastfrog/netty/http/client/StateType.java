@@ -31,6 +31,8 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import java.lang.reflect.Method;
 import java.time.Duration;
 
@@ -62,10 +64,19 @@ public enum StateType {
      */
     HeadersReceived,
     /**
+     * The websocket handshake for websocket upgrade connections has been
+     * completed.
+     */
+    WebsocketHandshakeComplete,
+    /**
      * One chunk of content has been received - not necessarily the entire
      * response, but some content.
      */
     ContentReceived,
+    /**
+     * A single web socket frame has been received.
+     */
+    WebSocketFrameReceived,
     /**
      * The response was a 300-307 HTTP redirect and the redirect is being
      * followed. Note this event will only be seen if the HttpClient is set to
@@ -111,6 +122,8 @@ public enum StateType {
             case ContentReceived:
             case HeadersReceived:
             case SendRequest:
+            case WebSocketFrameReceived:
+            case WebsocketHandshakeComplete:
                 return false;
         }
         return true;
@@ -190,6 +203,10 @@ public enum StateType {
                 return Boolean.class;
             case Timeout:
                 return Duration.class;
+            case WebSocketFrameReceived:
+                return WebSocketFrame.class;
+            case WebsocketHandshakeComplete:
+                return WebSocketClientHandshaker.class;
             default:
                 throw new AssertionError(this);
         }
@@ -228,6 +245,10 @@ public enum StateType {
                 return State.Cancelled.class;
             case Timeout:
                 return State.Timeout.class;
+            case WebSocketFrameReceived:
+                return State.WebSocketFrameReceived.class;
+            case WebsocketHandshakeComplete:
+                return State.WebsocketHandshakeComplete.class;
             default:
                 throw new AssertionError(this);
         }

@@ -23,7 +23,6 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.net.MediaType;
 import com.mastfrog.marshallers.netty.NettyContentMarshallers;

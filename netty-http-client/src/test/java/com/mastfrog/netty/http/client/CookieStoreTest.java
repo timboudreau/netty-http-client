@@ -63,8 +63,8 @@ public class CookieStoreTest {
         ck2.setMaxAge(10000);
 
         DefaultFullHttpResponse resp = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toString(ck1));
-        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toString(ck2));
+        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toCharSequence(ck1));
+        resp.headers().add(Headers.SET_COOKIE_B.name(), Headers.SET_COOKIE_B.toCharSequence(ck2));
 
         store.extract(resp.headers());
         Iterator<Cookie> iter = store.iterator();
