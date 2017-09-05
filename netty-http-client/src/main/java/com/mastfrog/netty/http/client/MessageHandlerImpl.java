@@ -193,6 +193,19 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         }
     }
 
+    static boolean devLogging() {
+        return Boolean.getBoolean("http.client.dev.logging");
+    }
+
+    static final void logHandlers(ChannelHandlerContext ctx, String msg) {
+        if (devLogging()) {
+            System.out.println("  CLIENT " + msg + " PIPELINE NOW: ");
+            ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+                System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+            });
+        }
+    }
+
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
 //        final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
@@ -200,18 +213,12 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 //        if (supportWebsockets && (Protocols.WS.match(proto) || Protocols.WSS.match(proto))) {
 //            websocketHandshake(ctx, info);
 //        }
-        System.out.println("  CLIENT handlerAdded PIPELINE NOW: ");
-        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
-            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
-        });
+        logHandlers(ctx, "handlerAdded");
     }
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
-        System.out.println("  CLIENT handlerRemoved PIPELINE NOW: ");
-        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
-            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
-        });
+        logHandlers(ctx, "handlerRemoved");
     }
 
     void websocketHandshake(ChannelHandlerContext ctx, RequestInfo info) {
@@ -228,12 +235,16 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     } else {
                         state.websocketHandshakeSucceeded = true;
 
-                        System.out.println("  CLIENT websocketHandshakeSucceeded PIPELINE NOW: ");
+                        if (devLogging()) {
+                            System.out.println("  CLIENT websocketHandshakeSucceeded PIPELINE NOW: ");
+                        }
                         ctx.pipeline().addBefore("handler", "ws", new WSHandler(hs));
 
-                        ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
-                            System.out.println("    - " + e.getKey() + "\t" + e.getValue());
-                        });
+                        if (devLogging()) {
+                            ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+                                System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+                            });
+                        }
                         info.handle.event(new State.WebsocketHandshakeComplete(hs));
                     }
                 });
@@ -250,14 +261,18 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            System.out.println("WSCPH read " + msg);
+            if (devLogging()) {
+                System.out.println("WSCPH read " + msg);
+            }
             super.channelRead(ctx, msg);
         }
 
         @Override
         protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) throws Exception {
             super.decode(ctx, frame, out);
-            System.out.println("WS DECODE " + frame + " into " + out);
+            if (devLogging()) {
+                System.out.println("WS DECODE " + frame + " into " + out);
+            }
         }
 
         @Override
@@ -346,7 +361,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 sendFullResponse(ctx);
             }
         } else if (msg instanceof WebSocketFrame) {
-            System.out.println("Received web socket frame");
+            if (devLogging()) {
+                System.out.println("Received web socket frame");
+            }
             WebSocketFrame frame = (WebSocketFrame) msg;
             info.handle.event(new State.WebSocketFrameReceived(frame));
             frame.content().resetReaderIndex();
