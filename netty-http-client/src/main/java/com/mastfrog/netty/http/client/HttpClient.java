@@ -62,7 +62,9 @@ import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
 import java.net.ConnectException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -645,6 +647,10 @@ public final class HttpClient {
                                             } catch (Exception ex) {
                                                 Exceptions.chuck(ex);
                                             }
+                                        } else if (first) {
+                                            if (isRedirect(object.status())) {
+                                                handle.event(new State.AwaitingResponse());
+                                            }
                                         }
                                     }
                                 });
@@ -664,6 +670,12 @@ public final class HttpClient {
             }
             Exceptions.chuck(ex);
         }
+    }
+
+    private static final Set<HttpResponseStatus> REDIRECTS = new HashSet<>(Arrays.asList(HttpResponseStatus.FOUND, HttpResponseStatus.SEE_OTHER, 
+            HttpResponseStatus.TEMPORARY_REDIRECT, HttpResponseStatus.PERMANENT_REDIRECT));
+    private static boolean isRedirect(HttpResponseStatus status) {
+        return REDIRECTS.contains(status);
     }
 
     private static final class StoreHandler extends Receiver<HttpResponse> {
