@@ -508,6 +508,7 @@ public class TestHarness implements ErrorInterceptor {
                     if (future != null) {
                         future.cancel();
                     }
+                    System.out.println("INTERRUPT");
                     mainThread.interrupt();
                 }
             } catch (InterruptedException ex) {
