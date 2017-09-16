@@ -42,12 +42,9 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
-import java.net.DatagramSocket;
-import java.net.ServerSocket;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +56,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Strings;
+import com.mastfrog.util.net.PortFinder;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
@@ -135,38 +133,9 @@ public class TestHarness implements ErrorInterceptor {
         return server;
     }
 
+    final PortFinder portFinder = new PortFinder();
     private int findPort() {
-        Random r = new Random(System.currentTimeMillis());
-        int port;
-        do {
-            port = r.nextInt(4000) + 4000;
-        } while (!available(port));
-        return port;
-    }
-
-    private boolean available(int port) {
-        ServerSocket ss = null;
-        DatagramSocket ds = null;
-        try {
-            ss = new ServerSocket(port);
-            ss.setReuseAddress(true);
-            ds = new DatagramSocket(port);
-            ds.setReuseAddress(true);
-            return true;
-        } catch (IOException e) {
-        } finally {
-            if (ds != null) {
-                ds.close();
-            }
-            if (ss != null) {
-                try {
-                    ss.close();
-                } catch (IOException e) {
-                    /* should not be thrown */
-                }
-            }
-        }
-        return false;
+        return portFinder.findAvailableServerPort();
     }
 
     public int getPort() {
