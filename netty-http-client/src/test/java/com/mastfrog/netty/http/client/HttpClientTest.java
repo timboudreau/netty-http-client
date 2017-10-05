@@ -27,9 +27,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.net.MediaType;
 import com.mastfrog.acteur.headers.Headers;
-import static com.mastfrog.acteur.headers.Headers.stringHeader;
 import com.mastfrog.acteur.util.Connection;
-import static com.mastfrog.acteur.util.Connection.upgrade;
 import com.mastfrog.netty.http.client.DeferredAssertions.Assertion;
 import com.mastfrog.tiny.http.server.ChunkedResponse;
 import com.mastfrog.tiny.http.server.Responder;
@@ -42,7 +40,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
@@ -52,10 +49,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import io.netty.util.CharsetUtil;
-import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -493,47 +487,5 @@ public class HttpClientTest {
             }
             return "Boo";
         }
-    }
-
-    public static void main(String[] args) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.builder()
-                .withWebsocketSupport()
-                .setUserAgent("curl/7.54.1")
-                .build();
-        /*
-curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Host: echo.websocket.org" -H "Origin: https://www.websocket.org" https://echo.websocket.org
-         */
-        ResponseFuture fut = client.get().setURL("http://echo.websocket.org")
-                .addHeader(Headers.CONNECTION, upgrade)
-                .addHeader(Headers.HOST, "echo.websocket.org")
-                .addHeader(stringHeader("Origin"), "http://www.websocket.org")
-                .addHeader(stringHeader("Upgrade"), "websocket")
-                .addHeader(stringHeader("Accept"), "*/*")
-                .setWebSocketVersion(WebSocketVersion.V07)
-//                .setBody("x", MediaType.PLAIN_TEXT_UTF_8)
-                .dontAggregateResponse()
-                .execute().sendOn(StateType.WebsocketHandshakeComplete, new TextWebSocketFrame("Hello"))
-                .on(StateType.WebSocketFrameReceived, new Receiver<State.WebSocketFrameReceived>() {
-                    @Override
-                    public void receive(State.WebSocketFrameReceived object) {
-                        System.out.println("RECEIVED FRAME " + object);
-                    }
-                }).onAnyEvent(new Receiver<State<?>>() {
-            @Override
-            public void receive(State<?> object) {
-                System.out.println("Receive: " + object + " - " + object.get());
-                if (object.get() instanceof Throwable) {
-                    ((Throwable) object.get()).printStackTrace();
-                } else if (object.get() instanceof ByteBuf) {
-                    ByteBuf bb = (ByteBuf) object.get();
-                    System.out.println(bb.readCharSequence(bb.readableBytes(), CharsetUtil.UTF_8));
-                } else if (object.get() instanceof FullHttpResponse) {
-                    ByteBuf bb = ((FullHttpResponse) object).content();
-                    System.out.println(bb.readCharSequence(bb.readableBytes(), CharsetUtil.UTF_8));
-                }
-            }
-        });
-        fut.await(5, TimeUnit.SECONDS);
-        client.shutdown();
     }
 }

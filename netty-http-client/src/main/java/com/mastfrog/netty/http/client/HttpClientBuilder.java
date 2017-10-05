@@ -362,8 +362,8 @@ public final class HttpClientBuilder {
                 group,
                 maxRedirects,
                 marshallers,
-                mapper,
-                supportWebsockets);
+                mapper
+                );
     }
 
     /**

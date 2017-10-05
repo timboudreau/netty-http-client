@@ -29,18 +29,13 @@ import com.mastfrog.url.URL;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -67,13 +62,11 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     private final boolean followRedirects;
     private final HttpClient client;
     private final int maxRedirects;
-    private final boolean supportWebsockets;
 
-    MessageHandlerImpl(boolean followRedirects, HttpClient client, int maxRedirects, boolean supportWebsockets) {
+    MessageHandlerImpl(boolean followRedirects, HttpClient client, int maxRedirects) {
         this.followRedirects = followRedirects;
         this.client = client;
         this.maxRedirects = maxRedirects == -1 ? DEFAULT_MAX_REDIRECTS : maxRedirects;
-        this.supportWebsockets = supportWebsockets;
     }
 
     @Override
@@ -113,7 +106,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         private final CompositeByteBuf aggregateContent;
         volatile HttpResponse resp;
         volatile boolean fullResponseSent;
-        volatile boolean websocketHandshakeSucceeded;
         private int readableBytes;
         private final boolean dontAggregate;
 
@@ -164,6 +156,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             case 307:
                 String hdr = URLDecoder.decode(msg.headers().get(HttpHeaderNames.LOCATION), "UTF-8");
                 if (hdr != null) {
+                    System.out.println("REDIRECT TO " + hdr);
                     if (hdr.toLowerCase().startsWith("http://") || hdr.toLowerCase().startsWith("https://")) {
                         return hdr;
                     } else {
@@ -221,38 +214,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         logHandlers(ctx, "handlerRemoved");
     }
 
-    void websocketHandshake(ChannelHandlerContext ctx, RequestInfo info) {
-        final ResponseState state = state(ctx, info);
-        CharSequence connectionHeader = state.resp == null ? HttpHeaderValues.UPGRADE : state.resp.headers().get(HttpHeaderNames.CONNECTION);
-        if (connectionHeader != null && HttpHeaderValues.UPGRADE.contentEqualsIgnoreCase(connectionHeader)) {
-            CharSequence upgradeTo = state.resp == null ? HttpHeaderValues.WEBSOCKET : state.resp.headers().get(HttpHeaderNames.UPGRADE);
-            if (upgradeTo != null && HttpHeaderValues.WEBSOCKET.contentEqualsIgnoreCase(upgradeTo)) {
-                final WebSocketClientHandshaker hs = info.handshaker();
-                ChannelPromise handshakePromise = ctx.newPromise();
-                handshakePromise.addListener((ChannelFutureListener) (ChannelFuture future) -> {
-                    if (!future.isSuccess()) {
-                        info.handle.event(new State.Error(future.cause()));
-                    } else {
-                        state.websocketHandshakeSucceeded = true;
-
-                        if (devLogging()) {
-                            System.out.println("  CLIENT websocketHandshakeSucceeded PIPELINE NOW: ");
-                        }
-                        ctx.pipeline().addBefore("handler", "ws", new WSHandler(hs));
-
-                        if (devLogging()) {
-                            ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
-                                System.out.println("    - " + e.getKey() + "\t" + e.getValue());
-                            });
-                        }
-                        info.handle.event(new State.WebsocketHandshakeComplete(hs));
-                    }
-                });
-                hs.handshake(ctx.channel(), handshakePromise);
-            }
-        }
-    }
-
     final class WSHandler extends WebSocketClientProtocolHandler {
 
         WSHandler(WebSocketClientHandshaker handshaker) {
@@ -284,12 +245,14 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (devLogging()) {
+            System.out.println("RECEIVE " + msg);
+            ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
+                System.out.println("    - " + e.getKey() + "\t" + e.getValue());
+            });
+        }
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
-            return;
-        }
-        if (msg instanceof FullHttpResponse && info.hasHandshaker() && !info.handshaker().isHandshakeComplete()) {
-            info.handshaker().finishHandshake(ctx.channel(), (FullHttpResponse) msg);
             return;
         }
         if (checkCancelled(ctx)) {
@@ -306,7 +269,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                     Method meth = state.resp.status().code() == 303 ? Method.GET : Method.valueOf(info.req.method().name());
                     // Shut off events from the old request
                     AtomicBoolean ab = new AtomicBoolean(true);
-                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate, info.chunkedBody, info.websocketVersion);
+                    RequestInfo b = new RequestInfo(info.url, info.req, ab, new ResponseFuture(ab), null, info.timeout, info.timer, info.dontAggregate, info.chunkedBody);
                     ctx.channel().attr(HttpClient.KEY).set(b);
                     if (info.redirectCount.getAndIncrement() < maxRedirects) {
                         URL url;
@@ -340,9 +303,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 info.handle.event(new State.Error(redirException));
                 info.handle.cancelled.lazySet(true);
             }
-            if (redirUrl == null && supportWebsockets) {
-                websocketHandshake(ctx, info);
-            }
         } else if (msg instanceof HttpContent) {
             HttpContent c = (HttpContent) msg;
             info.handle.event(new State.ContentReceived(c));
@@ -360,13 +320,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 c.content().resetReaderIndex();
                 sendFullResponse(ctx);
             }
-        } else if (msg instanceof WebSocketFrame) {
-            if (devLogging()) {
-                System.out.println("Received web socket frame");
-            }
-            WebSocketFrame frame = (WebSocketFrame) msg;
-            info.handle.event(new State.WebSocketFrameReceived(frame));
-            frame.content().resetReaderIndex();
         } else {
             info.handle.event(new State.Error(new IllegalStateException("Unknown object decoded: " + msg)));
         }

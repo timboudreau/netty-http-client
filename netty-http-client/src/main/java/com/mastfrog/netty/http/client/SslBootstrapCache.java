@@ -64,11 +64,10 @@ final class SslBootstrapCache {
     private final Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings;
     private final AddressResolverGroup<?> resolver;
     private final NioChannelFactory channelFactory;
-    private final boolean supportWebsockets;
     SslBootstrapCache(EventLoopGroup group, Duration timeout, SslContext sslContext, MessageHandlerImpl handler,
             int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, 
             Iterable<HttpClientBuilder.ChannelOptionSetting<?>> settings, AddressResolverGroup<?> resolver,
-            NioChannelFactory channelFactory, boolean supportWebsockets) {
+            NioChannelFactory channelFactory) {
         this.group = group;
         this.timeout = timeout;
         this.sslContext = sslContext;
@@ -80,7 +79,6 @@ final class SslBootstrapCache {
         this.settings = settings;
         this.resolver = resolver;
         this.channelFactory = channelFactory;
-        this.supportWebsockets = supportWebsockets;
     }
 
     Bootstrap sslBootstrap(HostAndPort hostAndPort) {
@@ -103,7 +101,7 @@ final class SslBootstrapCache {
             Bootstrap bootstrapSsl = new Bootstrap();
             bootstrapSsl.group(group);
             bootstrapSsl.handler(new Initializer(k, handler, sslContext, true, maxChunkSize, maxInitialLineLength, maxHeadersSize, 
-                    compress, supportWebsockets));
+                    compress));
 //            bootstrapSsl.option(ChannelOption.TCP_NODELAY, true);
             bootstrapSsl.option(ChannelOption.SO_REUSEADDR, false);
             if (resolver != null) {

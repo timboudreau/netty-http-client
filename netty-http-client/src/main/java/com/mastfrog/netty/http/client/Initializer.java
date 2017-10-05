@@ -32,7 +32,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpContentDecompressor;
-import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketClientCompressionHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
@@ -53,9 +52,8 @@ final class Initializer extends ChannelInitializer<Channel> {
     private final int maxChunkSize;
     private final int maxInitialLineLength;
     private final boolean compress;
-    private final boolean supportWebsockets;
 
-    Initializer(HostAndPort hostPort, ChannelInboundHandlerAdapter handler, SslContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress, boolean supportWebsockets) {
+    Initializer(HostAndPort hostPort, ChannelInboundHandlerAdapter handler, SslContext context, boolean ssl, int maxChunkSize, int maxInitialLineLength, int maxHeadersSize, boolean compress) {
         this.hostPort = hostPort;
         this.handler = handler;
         this.context = context;
@@ -63,7 +61,6 @@ final class Initializer extends ChannelInitializer<Channel> {
         this.maxChunkSize = maxChunkSize;
         this.maxInitialLineLength = maxInitialLineLength;
         this.compress = compress;
-        this.supportWebsockets = supportWebsockets;
     }
 
     @Override
@@ -77,9 +74,6 @@ final class Initializer extends ChannelInitializer<Channel> {
         pipeline.addLast("http-codec", new HttpClientCodec(maxInitialLineLength, maxChunkSize, maxChunkSize));
         if (compress) {
             pipeline.addLast("decompressor", new HttpContentDecompressor());
-        }
-        if (supportWebsockets) {
-            pipeline.addLast("websocketDecompressor", WebSocketClientCompressionHandler.INSTANCE);
         }
         pipeline.addLast("handler", handler);
     }
