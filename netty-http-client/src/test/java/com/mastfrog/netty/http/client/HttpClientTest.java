@@ -164,7 +164,6 @@ public class HttpClientTest {
             client.get().setURL("http://messy.re:" + server.httpPort() + "/").onEvent(new Receiver<State<?>>() {
                 @Override
                 public void receive(final State<?> object) {
-//                    System.err.println("RCV: " + object + " - " + object.get());
                     if (object.stateType() == StateType.Redirect) {
                         as.add(new Assertion() {
                             @Override
@@ -205,7 +204,6 @@ public class HttpClientTest {
 
             @Override
             protected void onErrorResponse(HttpResponseStatus status, HttpHeaders headers, String content) {
-                System.out.println("Error Response " + status + " " + content);
                 errorResponse.set(true);
             }
 

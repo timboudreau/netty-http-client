@@ -103,17 +103,17 @@ public class ConnectionRefusedTest {
 
                     @Override
                     protected void onErrorResponse(HttpResponseStatus status, HttpHeaders headers, String content) {
-                        System.out.println("onErrorResponse " + status + " - " + content);
+//                        System.out.println("onErrorResponse " + status + " - " + content);
                     }
 
                     @Override
                     protected void receive(Object obj) {
-                        System.out.println("RECEIVE " + obj);
+//                        System.out.println("RECEIVE " + obj);
                     }
 
                     @Override
                     protected void receive(HttpResponseStatus status, HttpHeaders headers, Object obj) {
-                        System.out.println("Receive " + status + " " + obj);
+//                        System.out.println("Receive " + status + " " + obj);
                     }
 
                     @Override

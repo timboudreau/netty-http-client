@@ -8,7 +8,6 @@
         <relativePath/>
     </parent>
     <artifactId>tiny-http-server</artifactId>
-    <packaging>jar</packaging>
     <name>Tiny Http Server</name>
     <build>
         <plugins>
