@@ -141,10 +141,8 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         @Override
         public void operationComplete(ChannelFuture future) {
             if (future.isSuccess()) {
-                System.out.println(" Send success.");
                 if (objs.hasNext()) {
                     Object o = objs.next();
-                    System.out.println("SEND " + o);
                     future = future.channel().writeAndFlush(o);
                     if (objs.hasNext()) {
                         future.addListener(this);

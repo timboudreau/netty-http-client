@@ -15,6 +15,7 @@ import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.acteur.util.ServerControl;
 import com.mastfrog.giulius.ShutdownHookRegistry;
+import com.mastfrog.netty.http.client.ChunkedContent;
 import com.mastfrog.netty.http.client.CookieStore;
 import com.mastfrog.netty.http.client.HttpClient;
 import com.mastfrog.netty.http.client.HttpRequestBuilder;
@@ -356,7 +357,7 @@ public class TestHarness implements ErrorInterceptor {
 
         @Override
         public TestRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
-            if (o != null && !(o instanceof CharSequence)) {
+            if (o != null && !(o instanceof CharSequence) && !(o instanceof ChunkedContent)) {
                 // The HttpClient does not have our object mapper
                 o = mapper.writeValueAsString(o);
             }

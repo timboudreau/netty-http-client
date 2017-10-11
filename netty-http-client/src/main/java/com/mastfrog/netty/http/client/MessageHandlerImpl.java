@@ -39,14 +39,10 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
-import io.netty.handler.codec.http.websocketx.WebSocketClientProtocolHandler;
-import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -156,7 +152,6 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             case 307:
                 String hdr = URLDecoder.decode(msg.headers().get(HttpHeaderNames.LOCATION), "UTF-8");
                 if (hdr != null) {
-                    System.out.println("REDIRECT TO " + hdr);
                     if (hdr.toLowerCase().startsWith("http://") || hdr.toLowerCase().startsWith("https://")) {
                         return hdr;
                     } else {
@@ -214,47 +209,15 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         logHandlers(ctx, "handlerRemoved");
     }
 
-    final class WSHandler extends WebSocketClientProtocolHandler {
-
-        WSHandler(WebSocketClientHandshaker handshaker) {
-            super(handshaker, false);
-        }
-
-        @Override
-        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (devLogging()) {
-                System.out.println("WSCPH read " + msg);
-            }
-            super.channelRead(ctx, msg);
-        }
-
-        @Override
-        protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) throws Exception {
-            super.decode(ctx, frame, out);
-            if (devLogging()) {
-                System.out.println("WS DECODE " + frame + " into " + out);
-            }
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-            info.handle.event(new State.Error(cause));
-        }
-    }
-
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
         if (devLogging()) {
-            System.out.println("RECEIVE " + msg);
+            System.out.println("RECEIVED " + msg);
             ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
                 System.out.println("    - " + e.getKey() + "\t" + e.getValue());
             });
         }
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
-        if (checkCancelled(ctx)) {
-            return;
-        }
         if (checkCancelled(ctx)) {
             return;
         }
@@ -304,6 +267,10 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 info.handle.cancelled.lazySet(true);
             }
         } else if (msg instanceof HttpContent) {
+            if (msg instanceof LastHttpContent && state.resp != null && (HttpResponseStatus.CONTINUE.equals(state.resp.status()))) {
+                info.handle.event(new State.AwaitingResponse());
+                return;
+            }
             HttpContent c = (HttpContent) msg;
             info.handle.event(new State.ContentReceived(c));
             c.content().resetReaderIndex();
