@@ -83,6 +83,7 @@ import static org.junit.Assert.fail;
  */
 @Singleton
 public class TestHarness implements ErrorInterceptor {
+    static final PortFinder portFinder = new PortFinder();
 
     private final Server server;
     @Inject(optional = true)
@@ -102,6 +103,7 @@ public class TestHarness implements ErrorInterceptor {
     public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
+        System.err.println("Using test port " + port + " settings has " + settings.getInt("testPort"));
         this.client = client;
         if (reg != null) {
             reg.add(new Shutdown());
@@ -133,7 +135,6 @@ public class TestHarness implements ErrorInterceptor {
         return server;
     }
 
-    final PortFinder portFinder = new PortFinder();
     private int findPort() {
         return portFinder.findAvailableServerPort();
     }
