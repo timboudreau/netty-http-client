@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 package com.mastfrog.netty.http.client;
 
 import io.netty.resolver.AbstractAddressResolver;
@@ -31,16 +30,14 @@ import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Promise;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import org.openide.util.Exceptions;
 
 /**
- * Maps all host name lookups to localhost, so we can use real host names but always
- * call only our local server.
+ * Maps all host name lookups to localhost, so we can use real host names but
+ * always call only our local server.
  */
 class LocalhostOnlyAddressResolverGroup extends AddressResolverGroup<InetSocketAddress> {
 
@@ -62,15 +59,13 @@ class LocalhostOnlyAddressResolverGroup extends AddressResolverGroup<InetSocketA
             super(executor, InetSocketAddress.class);
         }
 
+        private InetAddress localhost() {
+            return InetAddress.getLoopbackAddress();
+        }
+
         @Override
         protected boolean doIsResolved(InetSocketAddress t) {
-            try {
-                InetAddress loc = InetAddress.getLocalHost();
-                return loc.equals(t.getAddress());
-            } catch (UnknownHostException ex) {
-                Exceptions.printStackTrace(ex);
-                return false;
-            }
+            return localhost().equals(t.getAddress());
         }
 
         @Override
@@ -78,13 +73,9 @@ class LocalhostOnlyAddressResolverGroup extends AddressResolverGroup<InetSocketA
             super.executor().submit(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        InetAddress loc = InetAddress.getLocalHost();
-                        InetSocketAddress sock = new InetSocketAddress(loc, addr.getPort());
-                        prms.setSuccess(sock);
-                    } catch (UnknownHostException ex) {
-                        Exceptions.printStackTrace(ex);
-                    }
+                    InetAddress loc = localhost();
+                    InetSocketAddress sock = new InetSocketAddress(loc, addr.getPort());
+                    prms.setSuccess(sock);
                 }
             });
         }
@@ -94,13 +85,8 @@ class LocalhostOnlyAddressResolverGroup extends AddressResolverGroup<InetSocketA
             executor().submit(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        InetAddress loc = InetAddress.getLocalHost();
-                        InetSocketAddress sock = new InetSocketAddress(loc, addr.getPort());
-                        prms.setSuccess(Collections.singletonList(sock));
-                    } catch (UnknownHostException ex) {
-                        Exceptions.printStackTrace(ex);
-                    }
+                    InetSocketAddress sock = new InetSocketAddress(localhost(), addr.getPort());
+                    prms.setSuccess(Collections.singletonList(sock));
                 }
             });
         }
