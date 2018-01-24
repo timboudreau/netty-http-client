@@ -103,7 +103,9 @@ public class TestHarness implements ErrorInterceptor {
     public TestHarness(Server server, Settings settings, ShutdownHookRegistry reg, HttpClient client, ObjectMapper mapper) throws IOException {
         this.server = server;
         port = settings.getInt("testPort", findPort());
-        System.err.println("Using test port " + port + " settings has " + settings.getInt("testPort"));
+        if (Boolean.getBoolean("acteur.debug")) {
+            System.err.println("Using test port " + port + " settings has " + settings.getInt("testPort"));
+        }
         this.client = client;
         if (reg != null) {
             reg.add(new Shutdown());
