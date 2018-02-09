@@ -10,6 +10,7 @@ import com.google.inject.Singleton;
 import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
+import static com.mastfrog.acteur.headers.Headers.COOKIE_B;
 import static com.mastfrog.acteur.headers.Headers.SET_COOKIE_B;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.acteur.util.Server;
@@ -33,6 +34,7 @@ import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.settings.Settings;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
+import static com.mastfrog.util.Checks.notNull;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -60,6 +62,7 @@ import com.mastfrog.util.Strings;
 import com.mastfrog.util.net.PortFinder;
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
 import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -344,6 +347,26 @@ public class TestHarness implements ErrorInterceptor {
         public TestRequestBuilder basicAuthentication(String username, String password) {
             bldr.basicAuthentication(username, password);
             return this;
+        }
+
+        public TestRequestBuilder withCookie(String cookieName, String cookieValue) {
+            return addHeader(COOKIE_B, new io.netty.handler.codec.http.cookie.Cookie[]{
+                new DefaultCookie(cookieName, cookieValue)});
+        }
+
+        public TestRequestBuilder withCookies(String ka, String va, String kb, String vb) {
+            return addHeader(COOKIE_B, new io.netty.handler.codec.http.cookie.Cookie[]{
+                new DefaultCookie(ka, va), new DefaultCookie(kb, vb)});
+        }
+
+        public TestRequestBuilder withCookies(Map<String, String> cookies) {
+            List<io.netty.handler.codec.http.cookie.Cookie> cks
+                    = new ArrayList<>(notNull("cookies", cookies).size());
+            for (Map.Entry<String, String> e : cookies.entrySet()) {
+                DefaultCookie ck = new DefaultCookie(e.getKey(), e.getValue());
+                cks.add(ck);
+            }
+            return addHeader(COOKIE_B, cks.toArray(new io.netty.handler.codec.http.cookie.Cookie[cks.size()]));
         }
 
         private ResponseFuture future;
