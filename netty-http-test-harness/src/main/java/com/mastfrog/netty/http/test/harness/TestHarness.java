@@ -664,8 +664,9 @@ public class TestHarness implements ErrorInterceptor {
             ByteBuf result = content.get();
             if (result != null) {
                 result.resetReaderIndex();
+                result = result.duplicate();
             }
-            return result.duplicate();
+            return result;
         }
 
         @Override
