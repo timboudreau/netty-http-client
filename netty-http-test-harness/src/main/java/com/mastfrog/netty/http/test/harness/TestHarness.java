@@ -73,6 +73,7 @@ import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import static org.junit.Assert.fail;
 
 /**
@@ -280,6 +281,18 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public TestRequestBuilder addPathElement(String element) {
             bldr.addPathElement(element);
+            return this;
+        }
+
+        @Override
+        public TestRequestBuilder addQueryPairs(Map<String, String> pairs) {
+            bldr.addQueryPairs(pairs);
+            return this;
+        }
+
+        @Override
+        public TestRequestBuilder addQueryPairs(Map<String, Object> pairs, Function<Object, String> toString) {
+            bldr.addQueryPairs(pairs, toString);
             return this;
         }
 
