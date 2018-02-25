@@ -29,6 +29,7 @@ import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
 import com.mastfrog.marshallers.netty.NettyContentMarshallers;
+import com.mastfrog.url.PathElement;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.url.URLBuilder;
@@ -91,7 +92,8 @@ abstract class RequestBuilder implements HttpRequestBuilder {
 
     @Override
     public RequestBuilder addPathElement(String element) {
-        url.addPathElement(element);
+        // Use pathElement here to avoid double URL encoding
+        url.addPathElement(new PathElement(element, false, true));
         return this;
     }
 
