@@ -1265,7 +1265,7 @@ public class TestHarness implements ErrorInterceptor {
                         wait();
                         return;
                     } catch (InterruptedException ex) {
-                        org.openide.util.Exceptions.printStackTrace(ex);
+                        Exceptions.printStackTrace(ex);
                     }
                 }
             }

@@ -37,10 +37,14 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
+import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
+import static io.netty.handler.codec.http.HttpHeaderValues.KEEP_ALIVE;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.AsciiString;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static io.netty.handler.codec.http.HttpVersion.*;
 import io.netty.util.CharsetUtil;
@@ -54,11 +58,6 @@ import java.util.logging.Logger;
 @Sharable
 final class TinyHttpServerHandler extends ChannelInboundHandlerAdapter {
 
-    private static final AsciiString CONTENT_LENGTH = new AsciiString("Content-Length");
-    private static final AsciiString CONNECTION = new AsciiString("Connection");
-    private static final AsciiString KEEP_ALIVE = new AsciiString("keep-alive");
-    private static final AsciiString TRANSFER_ENCODING = new AsciiString("Transfer-Encoding");
-    private static final AsciiString CHUNKED = new AsciiString("chunked");
     private final Responder responder;
 
     TinyHttpServerHandler(Responder responder) {
