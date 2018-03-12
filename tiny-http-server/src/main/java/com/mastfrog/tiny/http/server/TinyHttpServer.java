@@ -180,13 +180,17 @@ public final class TinyHttpServer {
 
     static final Random r = new Random(System.currentTimeMillis());
 
+    static int port = 7000 + (int) (System.currentTimeMillis() % 1000);
     private static int findPort(int not) {
 
-        int port = 7000;
         do {
             // Make sure we're out of the way of a running mongo instance,
             // both the mongo port and the http port
             port = r.nextInt(1000) + 1 + port;
+            if (port > 65535) {
+                port = 7000;
+                continue;
+            }
         } while (!available(port) || port == not);
         return port;
     }

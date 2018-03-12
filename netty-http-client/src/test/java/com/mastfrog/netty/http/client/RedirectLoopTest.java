@@ -40,8 +40,12 @@ public class RedirectLoopTest {
 
     @After
     public void tearDown() throws Exception {
-        server.shutdown();
-        client.shutdown();
+        if (server != null) {
+            server.shutdown();
+        }
+        if (client != null) {
+            client.shutdown();
+        }
     }
 
     @Test
