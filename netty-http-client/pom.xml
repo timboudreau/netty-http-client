@@ -77,7 +77,7 @@
         <repository>
             <id>timboudreau-builds</id>
             <name>timboudreau.com builds</name>
-            <url>http://timboudreau.com/builds/plugin/repository/everything/</url>
+            <url>https://timboudreau.com/maven/</url>
             <releases>
                 <enabled>true</enabled>
                 <updatePolicy>never</updatePolicy>
