@@ -51,6 +51,7 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
@@ -153,7 +154,7 @@ public final class HttpClient {
     private final int maxChunkSize;
     private final int maxHeadersSize;
     private final boolean followRedirects;
-    private final String userAgent;
+    private final CharSequence userAgent;
     private final List<RequestInterceptor> interceptors;
     private final Iterable<ChannelOptionSetting<?>> settings;
     private final boolean send100continue;
@@ -163,7 +164,7 @@ public final class HttpClient {
     private final SslBootstrapCache sslBootstraps;
     private final MessageHandlerImpl handler;
     private final AddressResolverGroup<?> resolver;
-    private final NioChannelFactory channelFactory = new NioChannelFactory();
+    private final NioChannelFactory channelFactory = new NioChannelFactory(Boolean.getBoolean("httpclient.debug"));
     private final NettyContentMarshallers marshallers;
     private final ObjectMapper mapper;
 
@@ -211,7 +212,7 @@ public final class HttpClient {
      */
     public HttpClient(boolean compress, int maxChunkSize, int threads,
             int maxInitialLineLength, int maxHeadersSize, boolean followRedirects,
-            String userAgent, List<RequestInterceptor> interceptors,
+            CharSequence userAgent, List<RequestInterceptor> interceptors,
             Iterable<ChannelOptionSetting<?>> settings, boolean send100continue,
             CookieStore cookies, Duration timeout, SslContext sslContext, AddressResolverGroup<?> resolver,
             NioEventLoopGroup threadPool, int maxRedirects, NettyContentMarshallers marshallers, 
@@ -720,7 +721,7 @@ public final class HttpClient {
                 req.headers().add(HttpHeaderNames.USER_AGENT, userAgent);
             }
             if (compress) {
-                req.headers().add(HttpHeaderNames.ACCEPT_ENCODING, "gzip");
+                req.headers().add(HttpHeaderNames.ACCEPT_ENCODING, HttpHeaderValues.GZIP_DEFLATE);
             }
             AtomicBoolean cancelled = new AtomicBoolean();
             ResponseFuture handle = new ResponseFuture(cancelled);

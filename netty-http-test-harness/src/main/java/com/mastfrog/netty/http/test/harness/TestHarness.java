@@ -38,16 +38,13 @@ import static com.mastfrog.util.Checks.notNull;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Array;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -61,10 +58,12 @@ import com.mastfrog.util.Exceptions;
 import com.mastfrog.util.Strings;
 import com.mastfrog.util.net.PortFinder;
 import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -72,6 +71,7 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import static org.junit.Assert.fail;
@@ -87,6 +87,7 @@ import static org.junit.Assert.fail;
  */
 @Singleton
 public class TestHarness implements ErrorInterceptor {
+
     static final PortFinder portFinder = new PortFinder();
 
     private final Server server;
@@ -160,6 +161,7 @@ public class TestHarness implements ErrorInterceptor {
     }
 
     private ErrorInterceptor icept;
+
     public void onError(ErrorInterceptor icept) {
         this.icept = icept;
     }
@@ -606,8 +608,15 @@ public class TestHarness implements ErrorInterceptor {
                     setContent(full.get());
                     break;
                 case Error:
-                    this.err = (Throwable) state.get();
-                    this.err.printStackTrace();
+                    Throwable t = (Throwable) state.get();
+                    if (this.err != null) {
+                        if (this.err != t) {
+                            this.err.addSuppressed(t);
+                        }
+                    } else {
+                        this.err = (Throwable) state.get();
+                    }
+                    t.printStackTrace();
                     break;
             }
             if (updateState) {
@@ -664,7 +673,7 @@ public class TestHarness implements ErrorInterceptor {
             byte[] b = new byte[buf.readableBytes()];
             buf.readBytes(b);
             buf.resetReaderIndex();
-            
+
             return new String(b, charset);
         }
 
@@ -719,20 +728,29 @@ public class TestHarness implements ErrorInterceptor {
             // Handle the case that the status is temporarily 100-CONTINUE - unless
             // we're asserting that that is the status, we want to wait until we get
             // the real response status, after the payload is sent
+            HttpResponseStatus currStatus = status;
             if (!HttpResponseStatus.CONTINUE.equals(status)) {
-                while (HttpResponseStatus.CONTINUE.equals(getStatus())) {
+                while (HttpResponseStatus.CONTINUE.equals(currStatus = getStatus())) {
+                    if (states.contains(StateType.Error)) {
+                        throw new AssertionError("Error state encountered");
+                    }
                     if (states.contains(StateType.Timeout)) {
                         throw new AssertionError("Timed out");
                     }
                     if (states.contains(StateType.Cancelled)) {
                         throw new AssertionError("Cancelled");
                     }
-                    HttpResponseStatus currStatus = getStatus();
+                    if (states.contains(StateType.Closed)) {
+                        throw new AssertionError("Connection unexpectedly closed");
+                    }
+                    currStatus = getStatus();
                     if (currStatus == null || HttpResponseStatus.CONTINUE.equals(currStatus)) {
                         latches.get(HeadersReceived).reset();
                         await(HeadersReceived);
                     } else if (!HttpResponseStatus.CONTINUE.equals(currStatus)) {
                         break;
+                    } else {
+                        Thread.sleep(20);
                     }
                 }
             }
@@ -767,11 +785,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         private String headersToString() {
-            StringBuilder sb = new StringBuilder();
-            for (Map.Entry<String, String> e : getHeaders().entries()) {
-                sb.append(e.getKey()).append(": ").append(e.getValue()).append("\n");
-            }
-            return sb.toString();
+            return headersToString(getHeaders());
         }
 
         @Override
@@ -785,11 +799,21 @@ public class TestHarness implements ErrorInterceptor {
 
         public <T> CallResult assertHeader(HeaderValueType<T> hdr, T value) throws Throwable {
             waitForHeaders(hdr.name());
-            assertNotNull("Headers never sent", getHeaders());
-            String val = getHeaders().get(hdr.name());
+            HttpHeaders hdrs = getHeaders();
+            assertNotNull("Headers never sent", hdrs);
+            String val = hdrs.get(hdr.name());
             assertNotNull("No value for '" + hdr.name() + "' in \n" + headersToString(), val);
             T obj = hdr.toValue(val);
-            assertEquals(value, obj);
+            String msg = val == null ? "Got null for header " + hdr.name()  :
+                    "Got " + val +  (obj == null ? "" : " / " + obj + " (" + obj.getClass().getName() + ")" ) +
+                    " for " + hdr.name() + ", expected " + (value == null ? "null" : value + " (" + value.getClass().getSimpleName() + ")")
+                    + " in " + headersToString(hdrs);
+            if (obj instanceof CharSequence && value instanceof CharSequence && obj.getClass() != value.getClass()) {
+                // Ensure String and AsciiString don't falsely fail
+                assertTrue(msg, Strings.charSequencesEqual((CharSequence) obj, (CharSequence) val, true));
+            } else {
+                assertEquals(msg, value, obj);
+            }
             return this;
         }
 
@@ -950,10 +974,10 @@ public class TestHarness implements ErrorInterceptor {
         public HttpHeaders getHeaders() {
             return headers.get();
         }
-        
+
         private String h2s(HttpHeaders hdrs) {
             StringBuilder sb = new StringBuilder();
-            for (Iterator<Map.Entry<CharSequence, CharSequence>> iter= hdrs.iteratorCharSequence(); iter.hasNext();){
+            for (Iterator<Map.Entry<CharSequence, CharSequence>> iter = hdrs.iteratorCharSequence(); iter.hasNext();) {
                 Map.Entry<CharSequence, CharSequence> e = iter.next();
                 sb.append(" ").append(e.getKey()).append(": ").append(e.getValue()).append('\n');
             }
@@ -1028,7 +1052,7 @@ public class TestHarness implements ErrorInterceptor {
             }
             return this;
         }
-        
+
         public io.netty.handler.codec.http.cookie.Cookie getCookie(CharSequence cookieName) {
             HttpHeaders headers = getHeaders();
             for (String cookieHeader : headers.getAll(Headers.SET_COOKIE_B.name())) {
@@ -1042,7 +1066,7 @@ public class TestHarness implements ErrorInterceptor {
                 }
             }
             return null;
-            
+
         }
 
         @Override

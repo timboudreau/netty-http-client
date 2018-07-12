@@ -35,8 +35,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolver;
 import io.netty.resolver.AddressResolverGroup;
+import io.netty.util.AsciiString;
 import io.netty.util.concurrent.EventExecutor;
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,7 +62,7 @@ public final class HttpClientBuilder {
     private int maxInitialLineLength = 2_048;
     private int maxHeadersSize = 16_384;
     private boolean followRedirects = true;
-    private String userAgent;
+    private CharSequence userAgent;
     private final List<RequestInterceptor> interceptors = new LinkedList<>();
     private boolean send100continue = true;
     private CookieStore cookies;
@@ -373,7 +375,11 @@ public final class HttpClientBuilder {
      * @return this
      */
     public HttpClientBuilder setUserAgent(String userAgent) {
-        this.userAgent = userAgent;
+        if (!StandardCharsets.US_ASCII.newEncoder().canEncode(userAgent)) {
+            throw new IllegalArgumentException("User agent string contains non-ascii "
+                    + "characters which cannot be encoded in HTTP headers");
+        }
+        this.userAgent = AsciiString.of(userAgent);
         return this;
     }
 
