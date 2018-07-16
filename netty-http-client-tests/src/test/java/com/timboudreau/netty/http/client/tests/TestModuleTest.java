@@ -34,7 +34,7 @@ import com.mastfrog.netty.http.client.StateType;
 import com.mastfrog.netty.http.test.harness.TestHarness;
 import com.mastfrog.netty.http.test.harness.TestHarness.CallResult;
 import com.mastfrog.netty.http.test.harness.TestHarnessModule;
-import com.mastfrog.util.Streams;
+import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.thread.Receiver;
 import com.timboudreau.netty.http.client.tests.TestModuleTest.M;
 import io.netty.buffer.ByteBufInputStream;

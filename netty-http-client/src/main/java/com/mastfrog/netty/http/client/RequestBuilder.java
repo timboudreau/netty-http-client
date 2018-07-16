@@ -33,9 +33,9 @@ import com.mastfrog.url.PathElement;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.url.URLBuilder;
-import com.mastfrog.util.Checks;
-import com.mastfrog.util.Either;
-import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.preconditions.Checks;
+import com.mastfrog.util.multivariate.OneOf;
+import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -241,7 +241,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
         return url.create();
     }
 
-    private final Either<ByteBuf, ChunkedContent> body = new Either<>(ByteBuf.class, ChunkedContent.class);
+    private final OneOf<ByteBuf, ChunkedContent> body = new OneOf<>();
     boolean send100Continue = true;
 
     @Override
@@ -266,7 +266,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
                 Exceptions.chuck(ex);
             }
         }
-        body.set(buf);
+        body.setA(buf);
         if (send100Continue) {
             addHeader(Headers.EXPECT, HttpHeaderValues.CONTINUE);
         }

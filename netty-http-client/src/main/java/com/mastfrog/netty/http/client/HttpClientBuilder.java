@@ -25,7 +25,7 @@ package com.mastfrog.netty.http.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mastfrog.marshallers.ContentMarshallers;
-import com.mastfrog.util.Checks;
+import com.mastfrog.util.preconditions.Checks;
 import com.mastfrog.marshallers.Marshaller;
 import com.mastfrog.marshallers.netty.NettyContentMarshallers;
 import io.netty.bootstrap.Bootstrap;

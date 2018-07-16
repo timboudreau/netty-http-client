@@ -23,7 +23,7 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.mastfrog.util.Checks;
+import com.mastfrog.util.preconditions.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;

@@ -23,7 +23,7 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.mastfrog.util.Exceptions;
+import com.mastfrog.util.preconditions.Exceptions;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 

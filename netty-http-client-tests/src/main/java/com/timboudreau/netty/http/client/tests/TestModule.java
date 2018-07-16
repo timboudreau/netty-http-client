@@ -38,7 +38,7 @@ import com.mastfrog.acteur.server.PathFactory;
 import com.mastfrog.acteur.server.ServerModule;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.giulius.DependenciesBuilder;
-import com.mastfrog.util.Strings;
+import com.mastfrog.util.strings.Strings;
 import com.timboudreau.netty.http.client.tests.TestModule.App;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
