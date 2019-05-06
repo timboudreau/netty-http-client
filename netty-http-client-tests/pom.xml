@@ -23,7 +23,10 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-    <url>https://github.com/timboudreau/netty-http-client</url>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/netty-http-client/issues</url>
+    </issueManagement>
     <scm>
         <url>https://github.com/timboudreau/netty-http-client</url>
         <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>

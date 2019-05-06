@@ -128,7 +128,10 @@
             </releases>
         </repository>
     </repositories>
-    <url>https://github.com/timboudreau/netty-http-client</url>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/netty-http-client/issues</url>
+    </issueManagement>
     <build>
         <plugins>
             <plugin>

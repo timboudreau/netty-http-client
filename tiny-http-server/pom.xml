@@ -8,7 +8,10 @@
         <relativePath/>
     </parent>
     <artifactId>tiny-http-server</artifactId>
-    <name>Tiny Http Server</name>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/netty-http-client/issues</url>
+    </issueManagement><name>Tiny Http Server</name>
     <build>
         <plugins>
             <plugin>
