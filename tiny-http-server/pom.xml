@@ -8,6 +8,10 @@
         <relativePath/>
     </parent>
     <artifactId>tiny-http-server</artifactId>
+    <organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
     <issueManagement>
         <system>Github</system>
         <url>https://github.com/timboudreau/netty-http-client/issues</url>
