@@ -8,6 +8,7 @@
         <relativePath/>
     </parent>
     <artifactId>netty-http-client-tests</artifactId>
+    <url>https://github.com/timboudreau/netty-http-client</url>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -28,10 +29,11 @@
         <url>https://github.com/timboudreau/netty-http-client/issues</url>
     </issueManagement>
     <scm>
-        <url>https://github.com/timboudreau/netty-http-client</url>
+        <url>https://github.com/timboudreau/netty-http-client.git</url>
         <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
         <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
     </scm>
+    
     <organization>
         <name>Mastfrog Technologies</name>
         <url>https://mastfrog.com</url>
@@ -39,7 +41,8 @@
     <licenses>
         <license>
             <name>MIT</name>
-            <url>http://opensource.org/licenses/MIT</url>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
     <developers>

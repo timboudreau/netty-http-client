@@ -8,13 +8,24 @@
         <relativePath/>
     </parent>
     <artifactId>netty-http-client</artifactId>
-    <name>Netty Http Client</name>
+    <url>https://github.com/timboudreau/netty-http-client</url>
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses><name>Netty Http Client</name>
     <description>An asynchronous HTTP client library based on Netty 4.x</description>
     <scm>
-        <connection>git://github.com/timboudreau/netty-http-client.git</connection>
-        <developerConnection>git@github.com:timboudreau/netty-http-client.git</developerConnection>
-        <url>git://github.com/timboudreau/netty-http-client.git</url>
+        <url>https://github.com/timboudreau/netty-http-client.git</url>
+        <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
+        <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
     </scm>
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/netty-http-client/issues</url>
+    </issueManagement>
     <organization>
         <name>Mastfrog Technologies</name>
         <url>https://mastfrog.com</url>
@@ -132,10 +143,7 @@
             </releases>
         </repository>
     </repositories>
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/timboudreau/netty-http-client/issues</url>
-    </issueManagement>
+    
     <build>
         <plugins>
             <plugin>

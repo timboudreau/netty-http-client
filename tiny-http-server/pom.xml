@@ -8,14 +8,27 @@
         <relativePath/>
     </parent>
     <artifactId>tiny-http-server</artifactId>
-    <organization>
-        <name>Mastfrog Technologies</name>
-        <url>https://mastfrog.com</url>
-    </organization>
+    <url>https://github.com/timboudreau/netty-http-client</url>
+    <scm>
+        <url>https://github.com/timboudreau/netty-http-client.git</url>
+        <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
+        <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
+    </scm>
     <issueManagement>
         <system>Github</system>
         <url>https://github.com/timboudreau/netty-http-client/issues</url>
-    </issueManagement><name>Tiny Http Server</name>
+    </issueManagement>
+    <licenses>
+        <license>
+            <name>MIT</name>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses><organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <name>Tiny Http Server</name>
     <build>
         <plugins>
             <plugin>
