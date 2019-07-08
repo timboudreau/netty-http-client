@@ -80,8 +80,10 @@ public abstract class ResponseHandler<T> {
 
     protected void internalReceive(HttpResponseStatus status, HttpHeaders headers, ByteBuf content) {
         try {
+            content.touch("ResponseHandler.internalReceive");
             if (status.code() > 399) {
                 onErrorResponse(status, headers, content.readCharSequence(content.readableBytes(), CharsetUtil.UTF_8).toString());
+                content.release();
                 return;
             }
             MediaType mediaType = null;

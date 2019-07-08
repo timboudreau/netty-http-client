@@ -34,6 +34,7 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponse;
@@ -76,6 +77,12 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             } finally {
                 info.handle.event(new State.Closed());
             }
+            // XXX this should be done here, but if the test harness
+            // can hold onto the buffer, it can't be - should modify
+            // it to use retainedDuplicate(), but verifying that all
+            // users of that do then release the buffer is a much larger
+            // project
+//            discardResponseState(ctx);
         }
     }
 
@@ -93,6 +100,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             if (ch.isOpen()) {
                 ch.close();
             }
+            discardResponseState(ctx);
         }
         return result;
     }
@@ -104,6 +112,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         volatile boolean fullResponseSent;
         private int readableBytes;
         private final boolean dontAggregate;
+        private boolean released;
 
         ResponseState(ChannelHandlerContext ctx, boolean dontAggregate) {
             aggregateContent = ctx.alloc().compositeBuffer();
@@ -114,13 +123,25 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             return readableBytes;
         }
 
+        synchronized void release() {
+            if (!released) {
+                released = true;
+                aggregateContent.release();
+            }
+        }
+
         void append(ByteBuf buf) {
+            buf.touch("ResponseState.append");
             readableBytes += buf.readableBytes();
             if (!dontAggregate) {
                 int ix = aggregateContent.writerIndex();
                 int added = buf.readableBytes();
                 aggregateContent.addComponent(buf);
                 aggregateContent.writerIndex(ix + added);
+            } else {
+                if (buf.refCnt() > 0) {
+                    buf.release();
+                }
             }
         }
 
@@ -130,6 +151,14 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
     }
 
     public static final AttributeKey<ResponseState> RS = AttributeKey.<ResponseState>valueOf("state");
+
+    private void discardResponseState(ChannelHandlerContext ctx) {
+        Attribute<ResponseState> st = ctx.channel().attr(RS);
+        ResponseState rs = st.get();
+        if (rs != null) {
+            rs.release();
+        }
+    }
 
     private ResponseState state(ChannelHandlerContext ctx, RequestInfo info) {
         Attribute<ResponseState> st = ctx.channel().attr(RS);
@@ -226,6 +255,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             state.resp = (HttpResponse) msg;
             boolean redirectLoop = false;
             String redirUrl = null;
+            if (msg instanceof FullHttpResponse) {
+                ((FullHttpResponse) msg).touch("MessageHandlerImpl.channelRead-HttpResponse");
+            }
             if (followRedirects) {
                 redirUrl = isRedirect(info, state.resp);
                 if (redirUrl != null) {
@@ -267,6 +299,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
                 info.handle.cancelled.lazySet(true);
             }
         } else if (msg instanceof HttpContent) {
+            ((HttpContent) msg).touch("MessageHandlerImpl.channelRead-HttpContent");
             if (msg instanceof LastHttpContent && state.resp != null && (HttpResponseStatus.CONTINUE.equals(state.resp.status()))) {
                 info.handle.event(new State.AwaitingResponse());
                 return;
@@ -307,6 +340,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             state.fullResponseSent = true;
             info.handle.event(new State.FullContentReceived(state.aggregateContent));
             DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.aggregateContent);
+            full.touch("sendFullResponse");
             for (Map.Entry<String, String> e : state.resp.headers().entries()) {
                 full.headers().add(e.getKey(), e.getValue());
             }

@@ -35,6 +35,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONNECTION;
@@ -74,6 +75,10 @@ final class TinyHttpServerHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof HttpRequest) {
             HttpRequest req = (HttpRequest) msg;
 
+            if (req instanceof FullHttpRequest) {
+                ((FullHttpRequest) req).touch("TinyHttpServerHandler.channelRead()");
+            }
+
             if (HttpUtil.is100ContinueExpected(req)) {
                 ctx.write(new DefaultFullHttpResponse(HTTP_1_1, CONTINUE));
             }
@@ -83,6 +88,9 @@ final class TinyHttpServerHandler extends ChannelInboundHandlerAdapter {
             Object theContent;
             try {
                 theContent = responder.receive(req, headers);
+                if (req instanceof FullHttpRequest) {
+                    ((FullHttpRequest) req).release();
+                }
             } catch (Exception ex) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 try (PrintStream ps = new PrintStream(baos)) {
