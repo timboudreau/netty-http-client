@@ -5,6 +5,7 @@ import com.mastfrog.tiny.http.server.Responder;
 import com.mastfrog.tiny.http.server.ResponseHead;
 import com.mastfrog.tiny.http.server.TinyHttpServer;
 import com.mastfrog.url.URL;
+import com.mastfrog.util.net.PortFinder;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -31,10 +32,15 @@ public class RedirectLoopTest {
     TinyHttpServer server;
     HttpClient client;
     ResponderImpl responder;
+    private static final PortFinder ports = new PortFinder();
 
     @Before
     public void setup() throws CertificateException, SSLException, InterruptedException {
-        server = new TinyHttpServer(responder = new ResponderImpl());
+        // PortFinder's port algorithm is a little more collision-proof - needed
+        // for parallel tests
+        int http = ports.findAvailableServerPort();
+        int https = ports.findAvailableServerPort();
+        server = new TinyHttpServer(responder = new ResponderImpl(), http, https);
         client = HttpClient.builder().resolver(new LocalhostOnlyAddressResolverGroup()).followRedirects().build();
     }
 
@@ -69,7 +75,7 @@ public class RedirectLoopTest {
                         latch.countDown();
                     }
                 }).await(10, TimeUnit.SECONDS);
-        latch.await(10, TimeUnit.SECONDS);
+        latch.await(30, TimeUnit.SECONDS);
         server.throwLast();
         assertNotNull(content.get());
         assertEquals("Woo hoo", content.get());

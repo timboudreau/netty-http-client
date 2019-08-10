@@ -87,6 +87,11 @@
             <groupId>com.jcraft</groupId>
             <artifactId>jzlib</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-net</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>
