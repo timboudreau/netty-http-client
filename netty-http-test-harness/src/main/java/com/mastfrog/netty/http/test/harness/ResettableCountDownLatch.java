@@ -23,78 +23,38 @@
  */
 package com.mastfrog.netty.http.test.harness;
 
+import com.mastfrog.util.thread.OneThreadLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 class ResettableCountDownLatch {
 
-    private final Sync sync;
+    private final OneThreadLatch otl = new OneThreadLatch();
 
-    private static final class Sync extends AbstractQueuedSynchronizer {
-
-        private static final long serialVersionUID = 4982264981922014374L;
-        private final int initialCount;
-
-        Sync(int count) {
-            setState(initialCount = count);
-        }
-
-        void reset() {
-            setState(initialCount);
-        }
-
-        int getCount() {
-            return getState();
-        }
-
-        protected int tryAcquireShared(int acquires) {
-            return (getState() == 0) ? 1 : -1;
-        }
-
-        protected boolean tryReleaseShared(int releases) {
-            // Decrement count; signal when transition to zero
-            for (;;) {
-                int c = getState();
-                if (c == 0) {
-                    return false;
-                }
-                int nextc = c - 1;
-                if (compareAndSetState(c, nextc)) {
-                    return nextc == 0;
-                }
-            }
-        }
-    }
-
-    public ResettableCountDownLatch(int count) {
-        if (count < 0) {
-            throw new IllegalArgumentException("count < 0");
-        }
-        this.sync = new Sync(count);
+    ResettableCountDownLatch() {
     }
 
     public void await() throws InterruptedException {
-        sync.acquireSharedInterruptibly(1);
+        otl.await();
     }
 
     public boolean await(long timeout, TimeUnit unit)
             throws InterruptedException {
-        return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
+        return otl.await(timeout, unit);
+    }
+
+    public int getCount() {
+        return otl.releaseCount();
     }
 
     public void countDown() {
-        sync.releaseShared(1);
-    }
-
-    public long getCount() {
-        return sync.getCount();
+        otl.releaseAll();
     }
 
     public String toString() {
-        return super.toString() + "[Count = " + sync.getCount() + "]";
+        return super.toString() + "(" + otl + ")";
     }
 
     public void reset() {
-        sync.reset();
+        otl.releaseAll();
     }
 }

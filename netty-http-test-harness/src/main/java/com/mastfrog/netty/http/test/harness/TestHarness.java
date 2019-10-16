@@ -1178,7 +1178,6 @@ public class TestHarness implements ErrorInterceptor {
         NamedLatch[] others;
 
         public NamedLatch(String name, NamedLatch... others) {
-            super(1);
             this.name = name;
             this.others = others;
         }
