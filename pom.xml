@@ -1,10 +1,11 @@
-<?xml version="1.0"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>2.6.0</version>
+        <version>2.6.1</version>
         <relativePath/>
     </parent>
     <artifactId>netty-http-client-modules</artifactId>
@@ -26,7 +27,6 @@
         <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
         <developerConnection>git@github.com/timboudreau/netty-http-client.git</developerConnection>
     </scm>
-    
     <organization>
         <name>Mastfrog Technologies</name>
         <url>https://mastfrog.com</url>
