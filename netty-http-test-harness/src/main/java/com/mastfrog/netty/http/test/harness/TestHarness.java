@@ -655,6 +655,7 @@ public class TestHarness implements ErrorInterceptor {
             if (buf == null) {
                 return null;
             }
+            buf.touch("test-harness-content-as-string");
             if (!buf.isReadable()) {
                 return null;
             }
@@ -685,8 +686,10 @@ public class TestHarness implements ErrorInterceptor {
         private ByteBuf getContent() {
             ByteBuf result = content.get();
             if (result != null) {
+                result.touch("test-harness-get-content");
                 result.resetReaderIndex();
                 result = result.duplicate();
+                result.touch("test-harness-get-content-duplicate");
             }
             return result;
         }

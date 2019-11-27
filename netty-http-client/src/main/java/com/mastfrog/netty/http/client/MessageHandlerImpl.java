@@ -42,6 +42,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+import io.netty.util.ReferenceCounted;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Map;
@@ -116,6 +117,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
         ResponseState(ChannelHandlerContext ctx, boolean dontAggregate) {
             aggregateContent = ctx.alloc().compositeBuffer();
+            aggregateContent.touch("response-state-aggregate");
             this.dontAggregate = dontAggregate;
         }
 
@@ -172,6 +174,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
 
     private String isRedirect(RequestInfo info, HttpResponse msg) throws UnsupportedEncodingException {
         HttpResponseStatus status = msg.status();
+        if (msg instanceof ReferenceCounted) {
+            ((ReferenceCounted) msg).touch("msg-handler-is-redirect");
+        }
         switch (status.code()) {
             case 300:
             case 301:
@@ -245,6 +250,9 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
             ctx.pipeline().forEach((Entry<String, ChannelHandler> e) -> {
                 System.out.println("    - " + e.getKey() + "\t" + e.getValue());
             });
+        }
+        if (msg instanceof ReferenceCounted) {
+            ((ReferenceCounted) msg).touch("msg-handler-impl-channel-read");
         }
         final RequestInfo info = ctx.channel().attr(HttpClient.KEY).get();
         if (checkCancelled(ctx)) {
@@ -338,6 +346,7 @@ final class MessageHandlerImpl extends ChannelInboundHandlerAdapter {
         }
         if ((info.r != null || info.handle.has(type)) && !state.fullResponseSent && state.aggregateContent.readableBytes() > 0) {
             state.fullResponseSent = true;
+            state.aggregateContent.touch("client-send-full-response");
             info.handle.event(new State.FullContentReceived(state.aggregateContent));
             DefaultFullHttpResponse full = new DefaultFullHttpResponse(state.resp.protocolVersion(), state.resp.status(), state.aggregateContent);
             full.touch("sendFullResponse");

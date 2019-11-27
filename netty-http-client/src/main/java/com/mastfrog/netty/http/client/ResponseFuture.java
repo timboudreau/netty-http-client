@@ -27,6 +27,7 @@ import com.mastfrog.util.preconditions.Checks;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.util.ReferenceCounted;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -261,6 +262,9 @@ public final class ResponseFuture implements Comparable<ResponseFuture> {
         Checks.notNull("state", state);
         seenStates.add(state.stateType());
         lastState.set(state.stateType());
+        if (state.get() instanceof ReferenceCounted) {
+            ((ReferenceCounted) state.get()).touch("response-future-state-" + state.name());
+        }
         try {
             if ((state instanceof State.Error && cancelled.get()) || (state instanceof State.Timeout && cancelled.get())) {
                 if (!(state.get() instanceof RedirectException)) {

@@ -60,6 +60,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.util.AttributeKey;
 import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.ReferenceCounted;
 import java.net.ConnectException;
 import java.time.Duration;
 import java.util.Arrays;
@@ -717,6 +718,9 @@ public final class HttpClient {
             }
             URL u = getURL();
             HttpRequest req = build();
+            if (req instanceof ReferenceCounted) {
+                ((ReferenceCounted) req).touch("execute-client-request");
+            }
             if (userAgent != null) {
                 req.headers().add(HttpHeaderNames.USER_AGENT, userAgent);
             }

@@ -278,7 +278,9 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     protected final List<Receiver<State<?>>> any = new LinkedList<>();
 
     protected ByteBuf newByteBuf() {
-        return alloc.buffer();
+        ByteBuf result = alloc.ioBuffer();
+        result.touch("request-builder-new-byte-buf");
+        return result;
     }
 
     @Override
