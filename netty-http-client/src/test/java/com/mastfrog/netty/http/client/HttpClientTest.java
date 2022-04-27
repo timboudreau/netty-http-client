@@ -95,8 +95,12 @@ public class HttpClientTest {
     @After
     public void tearDown() throws Exception {
         Thread.sleep(200);
-        server.shutdown();
-        client.shutdown();
+        if (server != null) {
+            server.shutdown();
+        }
+        if (client != null) {
+            client.shutdown();
+        }
     }
 
     @Test

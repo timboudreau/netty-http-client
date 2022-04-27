@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -94,40 +94,12 @@
             <artifactId>util-net</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-    <repositories>
-        <repository>
-            <id>timboudreau-builds</id>
-            <name>timboudreau.com builds</name>
-            <url>https://timboudreau.com/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>never</updatePolicy>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>never</updatePolicy>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>central</id>
-            <name>central</name>
-            <url>https://repo1.maven.org/maven2</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>never</updatePolicy>
-            </releases>
-        </repository>
-        <repository>
-            <id>sonatype</id>
-            <name>sourceforge</name>
-            <url>http://oss.sonatype.org/</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>never</updatePolicy>
-            </releases>
-        </repository>
-    </repositories>
     <build>
         <plugins>
             <plugin>
