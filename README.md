@@ -1,6 +1,12 @@
 Netty HTTP Client
 =================
 
+_This project is fairly obsolete - there is a good HTTP client in the JDK now.  Use it.  This
+project will be maintained for a while yet, due to use of the adjacent HTTP test-harness that uses this
+library under the hood._
+
+-------------------------------------------------------------------------
+
 An asynchronous http client in Java, with a clean, callback-based API, using Netty 4.x.
 
 The API is inspired a bit by [Node.js](http://nodejs.org)
