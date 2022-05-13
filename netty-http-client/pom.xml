@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
- xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>mastfrog-parent</artifactId>
-        <version>2.8.1</version>
+        <version>3.0.0-dev</version>
         <relativePath/>
     </parent>
     <artifactId>netty-http-client</artifactId>
     <url>https://github.com/timboudreau/netty-http-client</url>
+
     <licenses>
         <license>
             <name>MIT</name>
@@ -19,6 +23,7 @@
     </licenses>
     <name>Netty Http Client</name>
     <description>An asynchronous HTTP client library based on Netty 4.x</description>
+
     <scm>
         <url>https://github.com/timboudreau/netty-http-client.git</url>
         <connection>scm:git:https://github.com/timboudreau/netty-http-client.git</connection>
@@ -28,10 +33,12 @@
         <system>Github</system>
         <url>https://github.com/timboudreau/netty-http-client/issues</url>
     </issueManagement>
+
     <organization>
         <name>Mastfrog Technologies</name>
         <url>https://mastfrog.com</url>
     </organization>
+
     <developers>
         <developer>
             <email>tim@timboudreau.com</email>
@@ -100,6 +107,7 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <plugin>
@@ -113,7 +121,7 @@
                     <reuseForks>false</reuseForks>
                     <systemPropertyVariables>
                         <forkNumber>${surefire.forkNumber}</forkNumber>
-                        <!-- <io.netty.leakDetection.level>advanced</io.netty.leakDetection.level> -->
+<!--  <io.netty.leakDetection.level>advanced</io.netty.leakDetection.level>  -->
                         <java.util.logging.config>${basedir}/test-logging.properties</java.util.logging.config>
                         <http.client.dev.logging>true</http.client.dev.logging>
                     </systemPropertyVariables>
