@@ -14,9 +14,13 @@ open module com.mastfrog.netty.http.client {
     requires com.mastfrog.marshaller.registry;
 
     // Inferred from source scan
+    requires com.mastfrog.net;
+
+    // Inferred from source scan
     requires com.mastfrog.preconditions;
 
     // Inferred from source scan
+
     // Transitive detected by source scan
     requires com.mastfrog.streams;
 
@@ -39,12 +43,16 @@ open module com.mastfrog.netty.http.client {
     requires io.netty.handler;
 
     // derived from com.fasterxml.jackson.core/jackson-databind-0.0.0-? in com/fasterxml/jackson/core/jackson-databind/2.9.9.3/jackson-databind-2.9.9.3.pom
-    requires com.fasterxml.jackson.databind;
+    requires transitive com.fasterxml.jackson.databind;
 
     // derived from org.javassist/javassist-3.28.0-GA in org/javassist/javassist/3.28.0-GA/javassist-3.28.0-GA.pom
     requires javassist;
 
+    // Inferred from test-source-scan
+    requires junit;
+
     // derived from com.jcraft/jzlib-1.1.3 in com/jcraft/jzlib/1.1.3/jzlib-1.1.3.pom
     requires jzlib;
-
+    
+    requires com.mastfrog.tiny.http.server;
 }

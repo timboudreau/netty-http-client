@@ -8,10 +8,24 @@ open module com.mastfrog.netty.http.client.tests {
     // Transitive detected by source scan
     requires com.mastfrog.acteur.deprecated;
 
+    // Inferred from source scan
+    requires com.mastfrog.misc;
+
     // Sibling com.mastfrog/netty-http-test-harness-3.0.0-dev
     requires com.mastfrog.netty.http.test.harness;
 
     // Inferred from source scan
+    requires com.mastfrog.streams;
+
+    // Inferred from source scan
     requires com.mastfrog.strings;
+
+    // Inferred from source scan
+
+    // Transitive detected by source scan
+    requires com.mastfrog.util.function;
+
+    // Inferred from test-source-scan
+    requires transitive junit;
 
 }
