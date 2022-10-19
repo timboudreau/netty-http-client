@@ -23,11 +23,9 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.common.net.MediaType;
 import com.mastfrog.acteur.headers.Headers;
-import com.mastfrog.acteur.util.Connection;
+import com.mastfrog.acteur.header.entities.Connection;
+import com.mastfrog.mime.MimeType;
 import com.mastfrog.netty.http.client.DeferredAssertions.Assertion;
 import com.mastfrog.tiny.http.server.ChunkedResponse;
 import com.mastfrog.tiny.http.server.Responder;
@@ -56,6 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -110,7 +109,7 @@ public class HttpClientTest {
         final AtomicReference<String> content = new AtomicReference<>();
         final AtomicReference<HttpResponseStatus> theStatus = new AtomicReference<>();
         final AtomicReference<Throwable> thrown = new AtomicReference<>();
-        client.put().setURL("http://chunky.thing:" + server.httpPort() + "/").setBody(body, MediaType.PLAIN_TEXT_UTF_8)
+        client.put().setURL("http://chunky.thing:" + server.httpPort() + "/").setBody(body, MimeType.PLAIN_TEXT_UTF_8)
                 .onEvent(new Receiver<State<?>>() {
                     @Override
                     public void receive(State<?> state) {
@@ -186,7 +185,7 @@ public class HttpClientTest {
     @Test
     public void testRedirectLimit() throws Throwable {
         final List<URL> redirects = new CopyOnWriteArrayList<>();
-        final Set<StateType> states = Sets.newConcurrentHashSet();
+        final Set<StateType> states = ConcurrentHashMap.newKeySet();
         final AtomicBoolean errorResponse = new AtomicBoolean();
         final AtomicReference<Throwable> error = new AtomicReference<>();
         final AtomicBoolean received = new AtomicBoolean();
@@ -296,7 +295,7 @@ public class HttpClientTest {
         ResponseFuture f = client.post()
                 .setURL(ur)
                 .addHeader(Headers.CONNECTION, Connection.close)
-                .setBody("This is a test", MediaType.PLAIN_TEXT_UTF_8)
+                .setBody("This is a test", MimeType.PLAIN_TEXT_UTF_8)
                 .onEvent(new Receiver<State<?>>() {
                     public void receive(State<?> state) {
                         stateTypes.add(state.stateType());
@@ -342,8 +341,8 @@ public class HttpClientTest {
 
     private static class AM implements ActivityMonitor {
 
-        final List<String> started = Lists.newCopyOnWriteArrayList();
-        final List<String> ended = Lists.newCopyOnWriteArrayList();
+        final List<String> started = new CopyOnWriteArrayList<>();
+        final List<String> ended = new CopyOnWriteArrayList<>();
 
         @Override
         public void onStartRequest(URL url) {

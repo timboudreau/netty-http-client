@@ -3,19 +3,17 @@ package com.mastfrog.netty.http.test.harness;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Sets;
-import com.google.common.net.MediaType;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import static com.mastfrog.acteur.headers.Headers.COOKIE_B;
 import static com.mastfrog.acteur.headers.Headers.SET_COOKIE_B;
 import com.mastfrog.acteur.headers.Method;
+import com.mastfrog.acteur.util.ErrorInterceptor;
 import com.mastfrog.acteur.util.Server;
 import com.mastfrog.acteur.util.ServerControl;
-import com.mastfrog.giulius.ShutdownHookRegistry;
+import com.mastfrog.mime.MimeType;
 import com.mastfrog.netty.http.client.ChunkedContent;
 import com.mastfrog.netty.http.client.CookieStore;
 import com.mastfrog.netty.http.client.HttpClient;
@@ -32,48 +30,50 @@ import static com.mastfrog.netty.http.client.StateType.Finished;
 import static com.mastfrog.netty.http.client.StateType.FullContentReceived;
 import static com.mastfrog.netty.http.client.StateType.HeadersReceived;
 import com.mastfrog.settings.Settings;
+import com.mastfrog.shutdown.hooks.ShutdownHookRegistry;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
+import com.mastfrog.util.net.PortFinder;
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import com.mastfrog.util.preconditions.Exceptions;
+import com.mastfrog.util.strings.Strings;
 import com.mastfrog.util.thread.Receiver;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
+import io.netty.handler.codec.http.Cookie;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import static io.netty.util.CharsetUtil.UTF_8;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Array;
+import java.nio.charset.Charset;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import com.mastfrog.util.preconditions.Exceptions;
-import com.mastfrog.util.strings.Strings;
-import com.mastfrog.util.net.PortFinder;
-import io.netty.handler.codec.http.Cookie;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.cookie.DefaultCookie;
-import static io.netty.util.CharsetUtil.UTF_8;
-import java.io.InputStream;
-import java.lang.reflect.Array;
-import java.nio.charset.Charset;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.EnumMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import static org.junit.Assert.fail;
 
 /**
@@ -397,7 +397,7 @@ public class TestHarness implements ErrorInterceptor {
         }
 
         @Override
-        public TestRequestBuilder setBody(Object o, MediaType contentType) throws IOException {
+        public TestRequestBuilder setBody(Object o, MimeType contentType) throws IOException {
             if (o != null && !(o instanceof CharSequence) && !(o instanceof ChunkedContent)) {
                 // The HttpClient does not have our object mapper
                 o = mapper.writeValueAsString(o);
@@ -465,7 +465,7 @@ public class TestHarness implements ErrorInterceptor {
     private static final class CallResultImpl extends Receiver<State<?>> implements CallResult, Runnable {
 
         private final URL url;
-        private final Set<StateType> states = Sets.newCopyOnWriteArraySet();
+        private final Set<StateType> states = ConcurrentHashMap.newKeySet();
         private final AtomicReference<HttpResponseStatus> status = new AtomicReference<>();
         private final AtomicReference<HttpHeaders> headers = new AtomicReference<>();
         private final AtomicReference<ByteBuf> content = new AtomicReference<>();
@@ -662,7 +662,7 @@ public class TestHarness implements ErrorInterceptor {
             buf.resetReaderIndex();
             Charset charset = UTF_8;
             if (headers.get() != null && headers.get().contains(HttpHeaderNames.CONTENT_TYPE)) {
-                MediaType mt = Headers.CONTENT_TYPE.toValue(headers.get().get(HttpHeaderNames.CONTENT_TYPE));
+                MimeType mt = Headers.CONTENT_TYPE.toValue(headers.get().get(HttpHeaderNames.CONTENT_TYPE));
                 if (mt != null && mt.charset().isPresent()) {
                     charset = mt.charset().get();
                 }

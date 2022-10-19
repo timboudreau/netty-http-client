@@ -23,8 +23,8 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.google.common.net.MediaType;
-import com.mastfrog.acteur.util.BasicCredentials;
+import com.mastfrog.mime.MimeType;
+import com.mastfrog.acteur.header.entities.BasicCredentials;
 import com.mastfrog.acteur.headers.HeaderValueType;
 import com.mastfrog.acteur.headers.Headers;
 import com.mastfrog.acteur.headers.Method;
@@ -245,7 +245,7 @@ abstract class RequestBuilder implements HttpRequestBuilder {
     boolean send100Continue = true;
 
     @Override
-    public HttpRequestBuilder setBody(Object bodyObject, MediaType contentType) throws IOException {
+    public HttpRequestBuilder setBody(Object bodyObject, MimeType contentType) throws IOException {
         Checks.notNull("body", bodyObject);
         ByteBuf buf;
         if (bodyObject instanceof ChunkedContent) {

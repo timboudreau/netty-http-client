@@ -23,8 +23,8 @@
  */
 package com.mastfrog.netty.http.client;
 
-import com.google.common.net.MediaType;
 import com.mastfrog.acteur.headers.HeaderValueType;
+import com.mastfrog.mime.MimeType;
 import com.mastfrog.url.Protocol;
 import com.mastfrog.url.URL;
 import com.mastfrog.util.thread.Receiver;
@@ -198,7 +198,7 @@ public interface HttpRequestBuilder {
      * @param o The body
      * @return
      */
-    HttpRequestBuilder setBody(Object o, MediaType contentType) throws IOException;
+    HttpRequestBuilder setBody(Object o, MimeType contentType) throws IOException;
 
     /**
      * Add an event handler for a particular event

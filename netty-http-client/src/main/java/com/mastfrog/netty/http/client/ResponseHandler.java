@@ -24,8 +24,8 @@
 package com.mastfrog.netty.http.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.net.MediaType;
 import com.mastfrog.marshallers.netty.NettyContentMarshallers;
+import com.mastfrog.mime.MimeType;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.CharsetUtil;
@@ -86,10 +86,10 @@ public abstract class ResponseHandler<T> {
                 content.release();
                 return;
             }
-            MediaType mediaType = null;
+            MimeType mediaType = null;
             if (headers.contains(HttpHeaderNames.CONTENT_TYPE)) {
                 try {
-                    mediaType = MediaType.parse(headers.get(HttpHeaderNames.CONTENT_TYPE));
+                    mediaType = MimeType.parse(headers.get(HttpHeaderNames.CONTENT_TYPE));
                 } catch (Exception ex) {
                     //do nothing
                 }
