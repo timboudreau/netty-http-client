@@ -54,15 +54,7 @@
 
         <dependency>
             <groupId>io.netty</groupId>
-            <artifactId>netty-buffer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.netty</groupId>
             <artifactId>netty-handler</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-codec-http</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -76,10 +68,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>util-function</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>acteur-util</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -97,10 +85,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>acteur-headers</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
             <groupId>org.javassist</groupId>
