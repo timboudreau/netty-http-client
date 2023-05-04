@@ -777,8 +777,17 @@ public class TestHarness implements ErrorInterceptor {
         @Override
         public CallResult throwIfError() throws Throwable {
             TestHarness.throwIfError();
-            await(latches.get(StateType.Error));
+
+            InterruptedException inter = null;
+            try {
+                await(latches.get(StateType.Error));
+            } catch (InterruptedException ie) {
+                inter = ie;
+            }
             if (err != null) {
+                if (inter != null) {
+                    err.addSuppressed(inter);
+                }
                 throw err;
             }
             if (future != null) {
@@ -807,9 +816,9 @@ public class TestHarness implements ErrorInterceptor {
             String val = hdrs.get(hdr.name());
             assertNotNull("No value for '" + hdr.name() + "' in \n" + headersToString(), val);
             T obj = hdr.toValue(val);
-            String msg = val == null ? "Got null for header " + hdr.name()  :
-                    "Got " + val +  (obj == null ? "" : " / " + obj + " (" + obj.getClass().getName() + ")" ) +
-                    " for " + hdr.name() + ", expected " + (value == null ? "null" : value + " (" + value.getClass().getSimpleName() + ")")
+            String msg = val == null ? "Got null for header " + hdr.name()
+                    : "Got " + val + (obj == null ? "" : " / " + obj + " (" + obj.getClass().getName() + ")")
+                    + " for " + hdr.name() + ", expected " + (value == null ? "null" : value + " (" + value.getClass().getSimpleName() + ")")
                     + " in " + headersToString(hdrs);
             if (obj instanceof CharSequence && value instanceof CharSequence && obj.getClass() != value.getClass()) {
                 // Ensure String and AsciiString don't falsely fail
