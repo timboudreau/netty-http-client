@@ -1292,7 +1292,6 @@ public class TestHarness implements ErrorInterceptor {
             }
         }
 
-        @Override
         public void awaitUninterruptibly() {
             synchronized (this) {
                 for (;;) {
@@ -1306,7 +1305,6 @@ public class TestHarness implements ErrorInterceptor {
             }
         }
 
-        @Override
         public long awaitNanos(long l) throws InterruptedException {
             //do nothing
             return 0L;
@@ -1317,19 +1315,16 @@ public class TestHarness implements ErrorInterceptor {
             return true;
         }
 
-        @Override
         public boolean awaitUntil(Date date) throws InterruptedException {
             return true;
         }
 
-        @Override
         public void signal() {
             synchronized (this) {
                 notifyAll();
             }
         }
 
-        @Override
         public void signalAll() {
             synchronized (this) {
                 notifyAll();
